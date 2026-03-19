@@ -24,7 +24,25 @@ export default function SignInScreen({ navigation }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [resetSent, setResetSent] = useState(false);
   const { signIn, loading } = useAuthStore();
+
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      setError('Enter your email above first, then tap Forgot Password.');
+      return;
+    }
+    const { supabase } = require('../../lib/supabase');
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+      redirectTo: 'aisle://reset-password',
+    });
+    if (resetError) {
+      setError(resetError.message);
+    } else {
+      setResetSent(true);
+      setError('');
+    }
+  };
 
   const handleSignIn = async () => {
     setError('');
@@ -75,6 +93,7 @@ export default function SignInScreen({ navigation }: Props) {
             />
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
+            {resetSent && <Text style={styles.success}>Reset email sent! Check your inbox.</Text>}
 
             <TouchableOpacity
               style={styles.button}
@@ -89,6 +108,11 @@ export default function SignInScreen({ navigation }: Props) {
               )}
             </TouchableOpacity>
           </View>
+
+          {/* Forgot password */}
+          <TouchableOpacity onPress={handleForgotPassword} style={styles.forgotBtn}>
+            <Text style={styles.forgotText}>Forgot Password?</Text>
+          </TouchableOpacity>
 
           {/* Footer */}
           <View style={styles.footer}>
@@ -168,6 +192,9 @@ const styles = StyleSheet.create({
     fontWeight: Typography.weights.bold,
     letterSpacing: 0.5,
   },
+  success: { color: Colors.success, fontSize: Typography.sizes.sm, marginTop: Spacing.sm },
+  forgotBtn: { alignItems: 'center', marginTop: Spacing.md },
+  forgotText: { color: Colors.primary, fontSize: Typography.sizes.sm },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',

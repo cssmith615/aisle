@@ -1,6 +1,16 @@
 // ─── Enums / string literals ───────────────────────────────────────────────
 
 export type UserTier = 'free' | 'premium' | 'pro';
+
+export type WeddingPartyRole =
+  | 'maid_of_honor'
+  | 'bridesmaid'
+  | 'best_man'
+  | 'groomsman'
+  | 'flower_girl'
+  | 'ring_bearer'
+  | 'parent'
+  | 'other';
 export type UserRole = 'user' | 'planner';
 
 export type EventType =
@@ -33,6 +43,15 @@ export type ChecklistCategory =
 
 export type VendorStatus = 'shortlisted' | 'contacted' | 'booked' | 'cancelled';
 
+export interface PaymentMilestone {
+  id: string;
+  label: string;
+  amount: number;
+  due_date: string; // YYYY-MM-DD
+  paid: boolean;
+  paid_date?: string;
+}
+
 export type ExpenseType = 'deposit' | 'final_payment' | 'misc';
 
 export type RsvpStatus = 'attending' | 'declined' | 'no_response' | 'maybe';
@@ -43,6 +62,25 @@ export type GuestGroup =
   | 'friends_bride'
   | 'friends_groom'
   | 'work'
+  | 'other';
+
+export type MoodboardCategory =
+  | 'dress'
+  | 'venue'
+  | 'florals'
+  | 'colors'
+  | 'cake'
+  | 'hair_makeup'
+  | 'decor'
+  | 'other';
+
+export type TimelineCategory =
+  | 'getting_ready'
+  | 'ceremony'
+  | 'photos'
+  | 'cocktail_hour'
+  | 'reception'
+  | 'travel'
   | 'other';
 
 // ─── Database row types ─────────────────────────────────────────────────────
@@ -72,6 +110,7 @@ export interface Event {
   total_budget: number | null;
   budget_allocations: Record<ChecklistCategory, number> | null; // JSONB
   currency: string;
+  theme_palette: string | null;
   is_archived: boolean;
   created_at: string;
   updated_at: string;
@@ -88,6 +127,7 @@ export interface ChecklistItem {
   is_completed: boolean;
   completed_at: string | null;
   vendor_id: string | null;
+  assigned_to_id: string | null;
   sort_order: number;
   is_custom: boolean;
   ai_generated: boolean;
@@ -118,6 +158,8 @@ export interface Vendor {
   status: VendorStatus;
   contract_signed: boolean;
   contract_url: string | null;
+  contract_notes: string | null;
+  payment_schedule: PaymentMilestone[] | null;
   notes: string | null;
   total_cost: number | null;
   created_at: string;
@@ -156,6 +198,59 @@ export interface Guest {
   thank_you_sent: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface WeddingPartyMember {
+  id: string;
+  event_id: string;
+  name: string;
+  role: WeddingPartyRole;
+  email: string | null;
+  share_code: string;
+  created_at: string;
+}
+
+export interface TimelineEvent {
+  id: string;
+  event_id: string;
+  time: string; // HH:MM 24-hour
+  title: string;
+  duration_minutes: number;
+  category: TimelineCategory;
+  location: string | null;
+  notes: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MoodboardItem {
+  id: string;
+  event_id: string;
+  image_url: string;
+  category: MoodboardCategory;
+  caption: string | null;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface CreateMoodboardItemInput {
+  event_id: string;
+  image_url: string;
+  category: MoodboardCategory;
+  caption?: string;
+  sort_order?: number;
+}
+
+export interface CreateTimelineEventInput {
+  event_id: string;
+  time: string;
+  title: string;
+  duration_minutes: number;
+  category: TimelineCategory;
+  location?: string;
+  notes?: string;
+  sort_order?: number;
 }
 
 export interface AiMessage {

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { UserProfile, UserRole } from '../types';
+import { initializePurchases } from '../utils/purchases';
 
 interface AuthState {
   session: Session | null;
@@ -16,6 +17,8 @@ interface AuthState {
   signOut: () => Promise<void>;
   loadProfile: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<{ error?: string }>;
+  updateTier: (tier: 'free' | 'premium' | 'pro') => Promise<void>;
+  deleteAccount: () => Promise<{ error?: string }>;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -31,12 +34,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     if (session?.user) {
       await get().loadProfile();
+      initializePurchases(session.user.id);
     }
 
     supabase.auth.onAuthStateChange(async (_event, session) => {
       set({ session, user: session?.user ?? null });
       if (session?.user) {
         await get().loadProfile();
+        initializePurchases(session.user.id);
       } else {
         set({ profile: null });
       }
@@ -126,5 +131,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (error) return { error: error.message };
     set({ profile: data as UserProfile });
     return {};
+  },
+
+  updateTier: async (tier) => {
+    await get().updateProfile({ tier } as any);
+  },
+
+  deleteAccount: async () => {
+    const user = get().user;
+    if (!user) return { error: 'Not authenticated' };
+    try {
+      // Delete all user data — CASCADE on events handles guests/checklist/vendors/expenses/etc.
+      // Then delete the auth record via RPC (requires delete_user_account() DB function)
+      const { error: rpcError } = await supabase.rpc('delete_user_account');
+      if (rpcError) {
+        // Fallback: delete profile row only (cascade handles the rest)
+        await supabase.from('user_profiles').delete().eq('id', user.id);
+      }
+      await supabase.auth.signOut();
+      set({ session: null, user: null, profile: null });
+      return {};
+    } catch (e: any) {
+      return { error: e?.message ?? 'Failed to delete account' };
+    }
   },
 }));

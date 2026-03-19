@@ -1,10 +1,12 @@
-import React, { useEffect } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import React, { useEffect, useRef } from 'react';
+import { NavigationContainer, NavigationContainerRef, CommonActions } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text, ActivityIndicator } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../store/authStore';
 import { Colors } from '../theme';
+import { useTheme } from '../context/ThemeContext';
 
 // Auth screens
 import SignInScreen from '../screens/auth/SignInScreen';
@@ -23,6 +25,19 @@ import BudgetScreen from '../screens/main/BudgetScreen';
 import VendorsScreen from '../screens/main/VendorsScreen';
 import GuestListScreen from '../screens/main/GuestListScreen';
 import AIAssistantScreen from '../screens/main/AIAssistantScreen';
+import ProDashboardScreen from '../screens/main/ProDashboardScreen';
+import ClientDetailScreen from '../screens/main/ClientDetailScreen';
+import WeddingPartyScreen from '../screens/main/WeddingPartyScreen';
+import AssigneePortalScreen from '../screens/main/AssigneePortalScreen';
+import ProfileScreen from '../screens/main/ProfileScreen';
+import UpgradeScreen from '../screens/main/UpgradeScreen';
+import EventSettingsScreen from '../screens/main/EventSettingsScreen';
+import NotificationsScreen from '../screens/main/NotificationsScreen';
+import DayOfTimelineScreen from '../screens/main/DayOfTimelineScreen';
+import MoodboardScreen from '../screens/main/MoodboardScreen';
+import SeatingChartScreen from '../screens/main/SeatingChartScreen';
+import ChecklistItemDetailScreen from '../screens/main/ChecklistItemDetailScreen';
+import BudgetCategoryDetailScreen from '../screens/main/BudgetCategoryDetailScreen';
 
 // Placeholder — screens will be replaced sprint by sprint
 const PlaceholderScreen = ({ name }: { name: string }) => (
@@ -55,18 +70,21 @@ export type MainTabParams = {
 
 export type MainStackParams = {
   MainTabs: undefined;
+  WeddingParty: undefined;
+  AssigneePortal: undefined;
   ChecklistItemDetail: { itemId: string };
-  AddExpense: { eventId: string; vendorId?: string };
   BudgetCategoryDetail: { category: string; eventId: string };
-  VendorDetail: { vendorId: string };
-  AddEditVendor: { vendorId?: string; eventId: string };
   GuestList: undefined;
-  AddEditGuest: { guestId?: string; eventId: string };
+  SeatingChart: undefined;
   AIAssistant: undefined;
   EventSettings: { eventId: string };
   Profile: undefined;
   Notifications: undefined;
   Upgrade: undefined;
+  ProDashboard: undefined;
+  ClientDetail: { eventId: string };
+  DayOfTimeline: undefined;
+  Moodboard: undefined;
 };
 
 // ─── Navigators ──────────────────────────────────────────────────────────────
@@ -98,19 +116,29 @@ function OnboardingNavigator() {
 }
 
 function MainTabs() {
+  const palette = useTheme();
   return (
     <MainTab.Navigator
-      screenOptions={{
+      screenOptions={({ route }) => ({
         headerShown: false,
         tabBarStyle: {
           backgroundColor: Colors.white,
           borderTopColor: Colors.border,
           borderTopWidth: 1,
         },
-        tabBarActiveTintColor: Colors.primary,
+        tabBarActiveTintColor: palette.primary,
         tabBarInactiveTintColor: Colors.textMuted,
         tabBarLabelStyle: { fontSize: 11, fontWeight: '500' },
-      }}
+        tabBarIcon: ({ color, size }) => {
+          const icons: Record<string, keyof typeof Ionicons.glyphMap> = {
+            Dashboard: 'home-outline',
+            Plan: 'checkbox-outline',
+            Budget: 'wallet-outline',
+            Vendors: 'storefront-outline',
+          };
+          return <Ionicons name={icons[route.name]} size={22} color={color} />;
+        },
+      })}
     >
       <MainTab.Screen name="Dashboard" component={DashboardScreen} />
       <MainTab.Screen name="Plan" component={ChecklistScreen} />
@@ -124,26 +152,63 @@ function MainNavigator() {
   return (
     <MainStack.Navigator screenOptions={{ headerShown: false }}>
       <MainStack.Screen name="MainTabs" component={MainTabs} />
-      <MainStack.Screen name="ChecklistItemDetail" children={() => <PlaceholderScreen name="Checklist Item" />} />
-      <MainStack.Screen name="AddExpense" children={() => <PlaceholderScreen name="Add Expense" />} />
-      <MainStack.Screen name="BudgetCategoryDetail" children={() => <PlaceholderScreen name="Budget Category" />} />
-      <MainStack.Screen name="VendorDetail" children={() => <PlaceholderScreen name="Vendor Detail" />} />
-      <MainStack.Screen name="AddEditVendor" children={() => <PlaceholderScreen name="Add/Edit Vendor" />} />
+      <MainStack.Screen name="ChecklistItemDetail" component={ChecklistItemDetailScreen} />
+      <MainStack.Screen name="BudgetCategoryDetail" component={BudgetCategoryDetailScreen} />
+      <MainStack.Screen name="SeatingChart" component={SeatingChartScreen} />
       <MainStack.Screen name="GuestList" component={GuestListScreen} />
-      <MainStack.Screen name="AddEditGuest" children={() => <PlaceholderScreen name="Add/Edit Guest" />} />
       <MainStack.Screen name="AIAssistant" component={AIAssistantScreen} />
-      <MainStack.Screen name="EventSettings" children={() => <PlaceholderScreen name="Event Settings" />} />
-      <MainStack.Screen name="Profile" children={() => <PlaceholderScreen name="Profile" />} />
-      <MainStack.Screen name="Notifications" children={() => <PlaceholderScreen name="Notifications" />} />
-      <MainStack.Screen name="Upgrade" children={() => <PlaceholderScreen name="Upgrade" />} />
+      <MainStack.Screen name="EventSettings" component={EventSettingsScreen} />
+      <MainStack.Screen name="Profile" component={ProfileScreen} />
+      <MainStack.Screen name="Notifications" component={NotificationsScreen} />
+      <MainStack.Screen name="Upgrade" component={UpgradeScreen} />
+      <MainStack.Screen name="ProDashboard" component={ProDashboardScreen} />
+      <MainStack.Screen name="ClientDetail" component={ClientDetailScreen} />
+      <MainStack.Screen name="WeddingParty" component={WeddingPartyScreen} />
+      <MainStack.Screen name="AssigneePortal" component={AssigneePortalScreen} />
+      <MainStack.Screen name="DayOfTimeline" component={DayOfTimelineScreen} />
+      <MainStack.Screen name="Moodboard" component={MoodboardScreen} />
     </MainStack.Navigator>
   );
 }
 
 // ─── Root ────────────────────────────────────────────────────────────────────
 
+function useNotificationTapHandler(navRef: React.RefObject<NavigationContainerRef<any>>) {
+  useEffect(() => {
+    let isExpoGo = false;
+    try { isExpoGo = require('expo-constants').default?.appOwnership === 'expo'; } catch {}
+    if (isExpoGo) return;
+
+    let Notifications: any;
+    try { Notifications = require('expo-notifications'); } catch { return; }
+    if (!Notifications?.addNotificationResponseReceivedListener) return;
+
+    const sub = Notifications.addNotificationResponseReceivedListener((response: any) => {
+      const data = response?.notification?.request?.content?.data;
+      if (!data || !navRef.current) return;
+
+      switch (data.type) {
+        case 'task':
+          navRef.current.dispatch(CommonActions.navigate('Plan'));
+          break;
+        case 'rsvp':
+          navRef.current.dispatch(CommonActions.navigate('GuestList'));
+          break;
+        case 'countdown':
+        case 'milestone':
+          navRef.current.dispatch(CommonActions.navigate('Dashboard'));
+          break;
+      }
+    });
+
+    return () => sub.remove();
+  }, []);
+}
+
 export default function RootNavigator() {
   const { session, profile, initialized, initialize } = useAuthStore();
+  const navRef = useRef<NavigationContainerRef<any>>(null!) as React.RefObject<NavigationContainerRef<any>>;
+  useNotificationTapHandler(navRef);
 
   useEffect(() => {
     initialize();
@@ -161,7 +226,7 @@ export default function RootNavigator() {
   const showMain = session && profile && profile.onboarding_done;
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navRef}>
       {!session && <AuthNavigator />}
       {showOnboarding && <OnboardingNavigator />}
       {showMain && <MainNavigator />}

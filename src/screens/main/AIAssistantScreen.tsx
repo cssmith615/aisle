@@ -6,25 +6,30 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { MainStackParams } from '../../navigation';
 import * as Haptics from 'expo-haptics';
 import { useAuthStore } from '../../store/authStore';
 import { useEventStore } from '../../store/eventStore';
 import { Colors, Typography, Spacing, Radius, Shadow } from '../../theme';
-import { sendMessage, getApiKey, saveApiKey, AiMessage } from '../../utils/aiAssistant';
+import { sendMessage, getApiKey, saveApiKey, AiMessage, EventContext } from '../../utils/aiAssistant';
 
 const QUICK_PROMPTS = [
   "What should I focus on right now?",
-  "Draft an inquiry email to a photographer",
-  "Help me create a day-of timeline",
-  "What's a typical wedding budget breakdown?",
-  "How do I politely decline a vendor?",
+  "What vendors do I still need to book?",
+  "Am I on track with my budget?",
+  "Draft a vendor inquiry email",
+  "Build my day-of timeline",
   "What am I probably forgetting?",
+  "How do I follow up on RSVPs?",
+  "Give me a 4-week action plan",
 ];
 
 export default function AIAssistantScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParams>>();
   const { profile } = useAuthStore();
-  const { events, activeEventId, checklistItems, guests } = useEventStore();
+  const isPremium = profile?.tier === 'premium' || profile?.tier === 'pro';
+  const { events, activeEventId, checklistItems, guests, vendors, expenses, timelineEvents, moodboardItems } = useEventStore();
   const activeEvent = events.find(e => e.id === activeEventId);
 
   const [messages, setMessages] = useState<AiMessage[]>([]);
@@ -39,18 +44,76 @@ export default function AIAssistantScreen() {
     getApiKey().then(k => setHasKey(!!k));
   }, []);
 
-  const getContext = () => {
+  const getContext = (): EventContext => {
     const daysUntil = activeEvent?.event_date
       ? Math.ceil((new Date(activeEvent.event_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
       : null;
+
+    const now = new Date();
+    const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+    // Budget
+    const totalBudget = activeEvent?.total_budget ?? null;
+    const budgetSpent = expenses.reduce((s, e) => s + Number(e.amount), 0);
+    const budgetRemaining = (totalBudget ?? 0) - budgetSpent;
+    const categoryTotals: Record<string, number> = {};
+    expenses.forEach(e => { categoryTotals[e.category] = (categoryTotals[e.category] ?? 0) + Number(e.amount); });
+    const topSpendCategories = Object.entries(categoryTotals)
+      .sort(([, a], [, b]) => b - a).slice(0, 3)
+      .map(([cat, amt]) => `${cat} ($${Math.round(amt / 1000)}k)`).join(', ');
+
+    // Checklist
+    const today = now.toISOString().split('T')[0];
+    const overdueTasks = checklistItems.filter(i => !i.is_completed && i.due_date && i.due_date < today).length;
+    const upcomingTaskTitles = checklistItems
+      .filter(i => !i.is_completed && i.due_date && i.due_date >= today && new Date(i.due_date) <= in30)
+      .sort((a, b) => a.due_date! > b.due_date! ? 1 : -1)
+      .slice(0, 3).map(t => t.title).join(', ');
+
+    // Vendors
+    const KEY_CATEGORIES = ['venue','catering','photography','videography','florals','music','attire','hair_makeup','cake','officiant'];
+    const bookedVendors = vendors.filter(v => v.status === 'booked');
+    const bookedCats = new Set(bookedVendors.map(v => v.category));
+    const missingCats = KEY_CATEGORIES.filter(c => !bookedCats.has(c as any));
+    const upcomingPayments = vendors
+      .flatMap(v => (v.payment_schedule ?? []).filter(p => !p.paid && p.due_date >= today).map(p => ({ ...p, vendorName: v.business_name })))
+      .sort((a, b) => a.due_date > b.due_date ? 1 : -1).slice(0, 3)
+      .map(p => `${p.vendorName} ${p.label} $${p.amount.toLocaleString()} due ${new Date(p.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`)
+      .join('; ');
+
+    // Guests
+    const moodCats = [...new Set(moodboardItems.map(m => m.category))].join(', ');
+
     return {
       eventName: activeEvent?.event_name ?? 'your wedding',
       eventDate: activeEvent?.event_date ?? null,
       daysUntil,
-      totalBudget: activeEvent?.total_budget ?? null,
-      guestCount: activeEvent?.guest_count_estimate ?? null,
+      venueName: activeEvent?.venue_name ?? null,
+      totalBudget,
+      budgetSpent,
+      budgetRemaining,
+      budgetOverBudget: budgetRemaining < 0,
+      topSpendCategories,
       completedTasks: checklistItems.filter(i => i.is_completed).length,
       totalTasks: checklistItems.length,
+      overdueTasks,
+      upcomingTaskTitles,
+      guestCountEstimate: activeEvent?.guest_count_estimate ?? null,
+      guestsTotal: guests.length,
+      guestsAttending: guests.filter(g => g.rsvp_status === 'attending').length,
+      guestsDeclined: guests.filter(g => g.rsvp_status === 'declined').length,
+      guestsAwaitingRsvp: guests.filter(g => g.rsvp_status === 'no_response').length,
+      guestsSeated: guests.filter(g => g.table_number != null).length,
+      guestsUnseated: guests.filter(g => g.table_number == null && g.rsvp_status === 'attending').length,
+      vendorsBooked: bookedVendors.length,
+      vendorsTotal: vendors.length,
+      bookedCategories: [...bookedCats].join(', '),
+      missingCategories: missingCats.slice(0, 5).join(', '),
+      upcomingPayments,
+      hasTimeline: timelineEvents.length > 0,
+      timelineEventCount: timelineEvents.length,
+      moodboardCount: moodboardItems.length,
+      moodboardCategories: moodCats,
     };
   };
 
@@ -144,6 +207,33 @@ export default function AIAssistantScreen() {
               ? <ActivityIndicator color={Colors.white} />
               : <Text style={styles.saveKeyBtnText}>Connect</Text>
             }
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!isPremium) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Text style={styles.backBtn}>← Back</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>AI Assistant</Text>
+          <View style={{ width: 60 }} />
+        </View>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+          <Text style={{ fontSize: 48, marginBottom: 16 }}>✨</Text>
+          <Text style={{ fontSize: 20, fontWeight: '700', color: '#333', marginBottom: 8, textAlign: 'center' }}>Premium Feature</Text>
+          <Text style={{ fontSize: 15, color: '#888', textAlign: 'center', lineHeight: 22, marginBottom: 24 }}>
+            The AI Assistant is available on Premium and Pro plans.
+          </Text>
+          <TouchableOpacity
+            style={{ backgroundColor: '#C9A96E', borderRadius: 50, paddingVertical: 14, paddingHorizontal: 32 }}
+            onPress={() => navigation.navigate('Upgrade')}
+          >
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Upgrade to Premium</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>

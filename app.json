@@ -1,30 +1,76 @@
 {
   "expo": {
-    "name": "aisle",
+    "name": "Aisle",
     "slug": "aisle",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "icon": "./assets/icon.png",
+    "scheme": "aisle",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#FDFAF8"
     },
     "ios": {
-      "supportsTablet": true
+      "bundleIdentifier": "com.aisle.weddingplanner",
+      "buildNumber": "1",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Aisle uses your camera to scan receipts and vendor contracts.",
+        "NSPhotoLibraryUsageDescription": "Aisle accesses your photo library to attach photos to vendors and expenses.",
+        "NSUserNotificationsUsageDescription": "Aisle sends reminders for upcoming wedding tasks and countdowns.",
+        "UIBackgroundModes": [
+          "fetch",
+          "remote-notification"
+        ]
+      }
     },
     "android": {
+      "package": "com.aisle.weddingplanner",
+      "versionCode": 1,
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "monochromeImage": "./assets/android-icon-monochrome.png",
+        "backgroundColor": "#FDFAF8"
       },
+      "permissions": [
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE",
+        "android.permission.POST_NOTIFICATIONS"
+      ],
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#C9A96E",
+          "sounds": []
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Aisle uses your photo library to add inspiration images to your moodboard.",
+          "cameraPermission": "Aisle uses your camera to capture inspiration photos."
+        }
+      ],
+      "expo-sharing"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "1cbec0c2-ae55-4208-af71-739f638fa4f5"
+      },
+      "privacyPolicyUrl": "https://cssmith615.github.io/aisle",
+      "supportUrl": "https://cssmith615.github.io/aisle/support.html"
+    },
+    "owner": "chuckssmith"
   }
 }

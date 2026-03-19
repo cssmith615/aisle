@@ -2,19 +2,26 @@ import React, { useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   RefreshControl, Modal, TextInput, KeyboardAvoidingView,
-  Platform, ScrollView, Alert,
+  Platform, ScrollView, Alert, Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
 import { useEventStore } from '../../store/eventStore';
+import { useTheme } from '../../context/ThemeContext';
 import { Colors, Typography, Spacing, Radius, Shadow } from '../../theme';
 import { Guest, RsvpStatus, GuestGroup, CreateGuestInput } from '../../types';
+import { MainStackParams } from '../../navigation';
+import { exportGuestsCsv } from '../../utils/exportUtils';
 
 const RSVP_CONFIG: Record<RsvpStatus, { label: string; color: string; bg: string; emoji: string }> = {
-  attending:   { label: 'Attending',   color: Colors.success,  bg: '#EDF7EE', emoji: '✅' },
-  declined:    { label: 'Declined',    color: Colors.error,    bg: '#FDECEA', emoji: '❌' },
+  attending:   { label: 'Attending',   color: Colors.success,   bg: '#EDF7EE', emoji: '✅' },
+  declined:    { label: 'Declined',    color: Colors.error,     bg: '#FDECEA', emoji: '❌' },
   no_response: { label: 'No Response', color: Colors.textMuted, bg: Colors.cream, emoji: '⏳' },
-  maybe:       { label: 'Maybe',       color: Colors.warning,  bg: '#FFF8E1', emoji: '🤔' },
+  maybe:       { label: 'Maybe',       color: Colors.warning,   bg: '#FFF8E1', emoji: '🤔' },
 };
 
 const GROUP_OPTIONS: { key: GuestGroup; label: string }[] = [
@@ -27,12 +34,31 @@ const GROUP_OPTIONS: { key: GuestGroup; label: string }[] = [
 ];
 
 export default function GuestListScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParams>>();
   const { guests, activeEventId, loadGuests, addGuest, updateGuest, deleteGuest } = useEventStore();
+  const { bottom } = useSafeAreaInsets();
+  const palette = useTheme();
+
   const [refreshing, setRefreshing] = useState(false);
   const [filterStatus, setFilterStatus] = useState<RsvpStatus | 'all'>('all');
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  const activeEvent = useEventStore(s => s.events.find(e => e.id === activeEventId));
+
+  const handleExport = async () => {
+    if (!guests.length) { Alert.alert('No guests', 'Add guests before exporting.'); return; }
+    setExporting(true);
+    try {
+      await exportGuestsCsv(guests, activeEvent?.event_name ?? 'Wedding');
+    } catch (e) {
+      Alert.alert('Export failed', 'Could not export guest list.');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const onRefresh = async () => {
     if (!activeEventId) return;
@@ -55,14 +81,16 @@ export default function GuestListScreen() {
   }, [guests, filterStatus, search]);
 
   const counts = useMemo(() => ({
-    attending: guests.filter(g => g.rsvp_status === 'attending').length,
-    declined: guests.filter(g => g.rsvp_status === 'declined').length,
+    attending:   guests.filter(g => g.rsvp_status === 'attending').length,
+    declined:    guests.filter(g => g.rsvp_status === 'declined').length,
     no_response: guests.filter(g => g.rsvp_status === 'no_response').length,
-    maybe: guests.filter(g => g.rsvp_status === 'maybe').length,
+    maybe:       guests.filter(g => g.rsvp_status === 'maybe').length,
   }), [guests]);
 
   const plusOnes = guests.filter(g => g.plus_one && g.rsvp_status === 'attending').length;
   const totalAttending = counts.attending + plusOnes;
+  const invitationsSent = guests.filter(g => g.invitation_sent).length;
+  const thankYousSent = guests.filter(g => g.thank_you_sent).length;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -72,9 +100,24 @@ export default function GuestListScreen() {
           <Text style={styles.title}>Guest List</Text>
           <Text style={styles.subtitle}>{guests.length} guests · {totalAttending} attending</Text>
         </View>
-        <TouchableOpacity style={styles.addBtn} onPress={() => setShowAddModal(true)}>
-          <Text style={styles.addBtnText}>+ Add</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.seatingBtn}
+            onPress={handleExport}
+            disabled={exporting}
+          >
+            <Ionicons name="share-outline" size={20} color={palette.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.seatingBtn}
+            onPress={() => navigation.navigate('SeatingChart')}
+          >
+            <Ionicons name="grid-outline" size={20} color={palette.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.addBtn, { backgroundColor: palette.primary }]} onPress={() => setShowAddModal(true)}>
+            <Text style={styles.addBtnText}>+ Add</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* RSVP summary strip */}
@@ -95,6 +138,26 @@ export default function GuestListScreen() {
         })}
       </View>
 
+      {/* Tracking strip */}
+      {guests.length > 0 && (
+        <View style={styles.trackingRow}>
+          <View style={styles.trackingItem}>
+            <Text style={[styles.trackingCount, { color: palette.primary }]}>{invitationsSent}</Text>
+            <Text style={styles.trackingLabel}>Invites sent</Text>
+          </View>
+          <View style={styles.trackingDivider} />
+          <View style={styles.trackingItem}>
+            <Text style={[styles.trackingCount, { color: palette.primary }]}>{thankYousSent}</Text>
+            <Text style={styles.trackingLabel}>Thank-yous sent</Text>
+          </View>
+          <View style={styles.trackingDivider} />
+          <View style={styles.trackingItem}>
+            <Text style={[styles.trackingCount, { color: palette.primary }]}>{guests.filter(g => g.table_number).length}</Text>
+            <Text style={styles.trackingLabel}>Tables assigned</Text>
+          </View>
+        </View>
+      )}
+
       {/* Search */}
       <View style={styles.searchWrap}>
         <TextInput
@@ -111,11 +174,12 @@ export default function GuestListScreen() {
       <FlatList
         data={filtered}
         keyExtractor={g => g.id}
-        contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
+        contentContainerStyle={[styles.list, { paddingBottom: bottom + 80 }]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.primary} />}
         renderItem={({ item }) => (
           <GuestRow
             guest={item}
+            palette={palette}
             onPress={() => setSelectedGuest(item)}
             onRsvpChange={async (status) => {
               await updateGuest(item.id, { rsvp_status: status });
@@ -137,6 +201,7 @@ export default function GuestListScreen() {
       <AddGuestModal
         visible={showAddModal}
         eventId={activeEventId ?? ''}
+        palette={palette}
         onClose={() => setShowAddModal(false)}
         onSave={async (data) => {
           await addGuest(data);
@@ -148,10 +213,12 @@ export default function GuestListScreen() {
       {selectedGuest && (
         <GuestDetailModal
           guest={selectedGuest}
+          palette={palette}
           onClose={() => setSelectedGuest(null)}
-          onUpdateRsvp={async (status) => {
-            await updateGuest(selectedGuest.id, { rsvp_status: status });
-            setSelectedGuest({ ...selectedGuest, rsvp_status: status });
+          onSave={async (updates) => {
+            await updateGuest(selectedGuest.id, updates);
+            setSelectedGuest({ ...selectedGuest, ...updates });
+            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           }}
           onDelete={async () => {
             Alert.alert('Remove Guest', `Remove ${selectedGuest.first_name}?`, [
@@ -173,8 +240,9 @@ export default function GuestListScreen() {
 
 // ─── Guest Row ────────────────────────────────────────────────────────────────
 
-function GuestRow({ guest, onPress, onRsvpChange }: {
+function GuestRow({ guest, palette, onPress, onRsvpChange }: {
   guest: Guest;
+  palette: { primary: string };
   onPress: () => void;
   onRsvpChange: (status: RsvpStatus) => void;
 }) {
@@ -192,16 +260,19 @@ function GuestRow({ guest, onPress, onRsvpChange }: {
           <View style={[styles.rsvpBadge, { backgroundColor: cfg.bg }]}>
             <Text style={[styles.rsvpText, { color: cfg.color }]}>{cfg.label}</Text>
           </View>
-          {guest.plus_one && <Text style={styles.plusOne}>+1</Text>}
-          {guest.dietary_notes && <Text style={styles.dietary}>🍽️</Text>}
+          {guest.plus_one && <Text style={styles.metaTag}>+1</Text>}
+          {guest.table_number ? <Text style={styles.metaTag}>T{guest.table_number}</Text> : null}
+          {guest.invitation_sent && <Text style={styles.metaTag}>✉️</Text>}
+          {guest.dietary_notes && <Text style={styles.metaTag}>🍽️</Text>}
         </View>
       </View>
-      {/* Quick RSVP toggle */}
       <TouchableOpacity
-        style={[styles.quickRsvp, guest.rsvp_status === 'attending' && styles.quickRsvpActive]}
+        style={[styles.quickRsvp, guest.rsvp_status === 'attending' && { backgroundColor: palette.primary, borderColor: palette.primary }]}
         onPress={() => onRsvpChange(guest.rsvp_status === 'attending' ? 'no_response' : 'attending')}
       >
-        <Text style={styles.quickRsvpText}>{guest.rsvp_status === 'attending' ? '✓' : '+'}</Text>
+        <Text style={[styles.quickRsvpText, guest.rsvp_status === 'attending' && { color: Colors.white }]}>
+          {guest.rsvp_status === 'attending' ? '✓' : '+'}
+        </Text>
       </TouchableOpacity>
     </TouchableOpacity>
   );
@@ -209,25 +280,47 @@ function GuestRow({ guest, onPress, onRsvpChange }: {
 
 // ─── Guest Detail Modal ───────────────────────────────────────────────────────
 
-function GuestDetailModal({ guest, onClose, onUpdateRsvp, onDelete }: {
+function GuestDetailModal({ guest, palette, onClose, onSave, onDelete }: {
   guest: Guest;
+  palette: { primary: string };
   onClose: () => void;
-  onUpdateRsvp: (status: RsvpStatus) => void;
+  onSave: (updates: Partial<Guest>) => void;
   onDelete: () => void;
 }) {
+  const [rsvp, setRsvp] = useState<RsvpStatus>(guest.rsvp_status);
+  const [tableNumber, setTableNumber] = useState(guest.table_number?.toString() ?? '');
+  const [invitationSent, setInvitationSent] = useState(guest.invitation_sent);
+  const [thankYouSent, setThankYouSent] = useState(guest.thank_you_sent);
+  const [plusOneName, setPlusOneName] = useState(guest.plus_one_name ?? '');
+
+  const handleSave = () => {
+    onSave({
+      rsvp_status: rsvp,
+      table_number: tableNumber ? parseInt(tableNumber) : null,
+      invitation_sent: invitationSent,
+      thank_you_sent: thankYouSent,
+      plus_one_name: guest.plus_one ? (plusOneName.trim() || null) : null,
+    });
+    onClose();
+  };
+
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={styles.modal}>
         <View style={styles.modalHeader}>
           <TouchableOpacity onPress={onClose}>
-            <Text style={styles.modalCancel}>Done</Text>
+            <Text style={styles.modalCancel}>Cancel</Text>
           </TouchableOpacity>
-          <Text style={styles.modalTitle}>{guest.first_name} {guest.last_name ?? ''}</Text>
-          <TouchableOpacity onPress={onDelete}>
-            <Text style={[styles.modalCancel, { color: Colors.error }]}>Remove</Text>
+          <Text style={styles.modalTitle} numberOfLines={1}>
+            {guest.first_name} {guest.last_name ?? ''}
+          </Text>
+          <TouchableOpacity onPress={handleSave}>
+            <Text style={[styles.modalSave, { color: palette.primary }]}>Save</Text>
           </TouchableOpacity>
         </View>
+
         <ScrollView contentContainerStyle={styles.modalScroll}>
+          {/* RSVP */}
           <Text style={styles.modalLabel}>RSVP Status</Text>
           <View style={styles.typeRow}>
             {(['attending', 'maybe', 'no_response', 'declined'] as RsvpStatus[]).map(s => {
@@ -235,10 +328,10 @@ function GuestDetailModal({ guest, onClose, onUpdateRsvp, onDelete }: {
               return (
                 <TouchableOpacity
                   key={s}
-                  style={[styles.typeChip, guest.rsvp_status === s && { borderColor: cfg.color, backgroundColor: cfg.bg }]}
-                  onPress={() => onUpdateRsvp(s)}
+                  style={[styles.typeChip, rsvp === s && { borderColor: cfg.color, backgroundColor: cfg.bg }]}
+                  onPress={() => setRsvp(s)}
                 >
-                  <Text style={[styles.typeChipText, guest.rsvp_status === s && { color: cfg.color, fontWeight: Typography.weights.semibold }]}>
+                  <Text style={[styles.typeChipText, rsvp === s && { color: cfg.color, fontWeight: Typography.weights.semibold }]}>
                     {cfg.emoji} {cfg.label}
                   </Text>
                 </TouchableOpacity>
@@ -246,12 +339,74 @@ function GuestDetailModal({ guest, onClose, onUpdateRsvp, onDelete }: {
             })}
           </View>
 
+          {/* Contact info (read-only) */}
           {guest.email && <DetailRow label="Email" value={guest.email} />}
           {guest.phone && <DetailRow label="Phone" value={guest.phone} />}
-          {guest.group_tag && <DetailRow label="Group" value={GROUP_OPTIONS.find(g => g.key === guest.group_tag)?.label ?? guest.group_tag} />}
-          {guest.dietary_notes && <DetailRow label="Dietary notes" value={guest.dietary_notes} />}
-          {guest.table_number && <DetailRow label="Table" value={`Table ${guest.table_number}`} />}
-          {guest.plus_one && <DetailRow label="Plus one" value={guest.plus_one_name ?? 'Yes'} />}
+          {guest.group_tag && (
+            <DetailRow label="Group" value={GROUP_OPTIONS.find(g => g.key === guest.group_tag)?.label ?? guest.group_tag} />
+          )}
+          {guest.dietary_notes && <DetailRow label="Dietary Notes" value={guest.dietary_notes} />}
+
+          {/* Plus-one name */}
+          {guest.plus_one && (
+            <>
+              <Text style={styles.modalLabel}>Plus-One Name</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={plusOneName}
+                onChangeText={setPlusOneName}
+                placeholder="Guest's plus-one name"
+                placeholderTextColor={Colors.textMuted}
+                autoCapitalize="words"
+              />
+            </>
+          )}
+
+          {/* Table number */}
+          <Text style={styles.modalLabel}>Table Number</Text>
+          <TextInput
+            style={styles.modalInput}
+            value={tableNumber}
+            onChangeText={setTableNumber}
+            placeholder="e.g. 5"
+            placeholderTextColor={Colors.textMuted}
+            keyboardType="number-pad"
+          />
+
+          {/* Tracking toggles */}
+          <Text style={styles.modalLabel}>Tracking</Text>
+          <View style={styles.toggleCard}>
+            <View style={styles.toggleRow}>
+              <View style={styles.toggleLeft}>
+                <Text style={styles.toggleLabel}>Invitation Sent</Text>
+                <Text style={styles.toggleSub}>Mark when invitation is mailed or emailed</Text>
+              </View>
+              <Switch
+                value={invitationSent}
+                onValueChange={setInvitationSent}
+                trackColor={{ true: palette.primary, false: Colors.border }}
+                thumbColor={Colors.white}
+              />
+            </View>
+            <View style={styles.toggleDivider} />
+            <View style={styles.toggleRow}>
+              <View style={styles.toggleLeft}>
+                <Text style={styles.toggleLabel}>Thank-You Sent</Text>
+                <Text style={styles.toggleSub}>Mark after the wedding thank-you is sent</Text>
+              </View>
+              <Switch
+                value={thankYouSent}
+                onValueChange={setThankYouSent}
+                trackColor={{ true: palette.primary, false: Colors.border }}
+                thumbColor={Colors.white}
+              />
+            </View>
+          </View>
+
+          {/* Delete */}
+          <TouchableOpacity style={styles.deleteBtn} onPress={onDelete}>
+            <Text style={styles.deleteBtnText}>Remove Guest</Text>
+          </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
     </Modal>
@@ -269,9 +424,10 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 // ─── Add Guest Modal ──────────────────────────────────────────────────────────
 
-function AddGuestModal({ visible, eventId, onClose, onSave }: {
+function AddGuestModal({ visible, eventId, palette, onClose, onSave }: {
   visible: boolean;
   eventId: string;
+  palette: { primary: string };
   onClose: () => void;
   onSave: (data: CreateGuestInput) => void;
 }) {
@@ -314,8 +470,8 @@ function AddGuestModal({ visible, eventId, onClose, onSave }: {
               <Text style={styles.modalCancel}>Cancel</Text>
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Add Guest</Text>
-            <TouchableOpacity onPress={handleSave}>
-              <Text style={[styles.modalSave, !firstName && { opacity: 0.4 }]}>Save</Text>
+            <TouchableOpacity onPress={handleSave} disabled={!firstName}>
+              <Text style={[styles.modalSave, { color: palette.primary }, !firstName && { opacity: 0.4 }]}>Save</Text>
             </TouchableOpacity>
           </View>
 
@@ -324,7 +480,7 @@ function AddGuestModal({ visible, eventId, onClose, onSave }: {
               <View style={{ flex: 1 }}>
                 <Text style={styles.modalLabel}>First Name *</Text>
                 <TextInput style={styles.modalInput} value={firstName} onChangeText={setFirstName}
-                  placeholder="Emily" placeholderTextColor={Colors.textMuted} autoCapitalize="words" />
+                  placeholder="Emily" placeholderTextColor={Colors.textMuted} autoCapitalize="words" autoFocus />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.modalLabel}>Last Name</Text>
@@ -338,10 +494,12 @@ function AddGuestModal({ visible, eventId, onClose, onSave }: {
               {GROUP_OPTIONS.map(g => (
                 <TouchableOpacity
                   key={g.key}
-                  style={[styles.catChip, group === g.key && styles.catChipActive]}
+                  style={[styles.catChip, group === g.key && { borderColor: palette.primary, backgroundColor: palette.primary + '15' }]}
                   onPress={() => setGroup(g.key)}
                 >
-                  <Text style={[styles.catChipText, group === g.key && styles.catChipTextActive]}>{g.label}</Text>
+                  <Text style={[styles.catChipText, group === g.key && { color: palette.primary, fontWeight: Typography.weights.semibold }]}>
+                    {g.label}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -363,11 +521,11 @@ function AddGuestModal({ visible, eventId, onClose, onSave }: {
             <TextInput style={styles.modalInput} value={table} onChangeText={setTable}
               placeholder="e.g. 5" placeholderTextColor={Colors.textMuted} keyboardType="number-pad" />
 
-            <TouchableOpacity style={styles.toggleRow} onPress={() => setPlusOne(!plusOne)}>
-              <View style={[styles.checkbox, plusOne && styles.checkboxActive]}>
+            <TouchableOpacity style={styles.checkRow} onPress={() => setPlusOne(!plusOne)}>
+              <View style={[styles.checkbox, plusOne && { backgroundColor: palette.primary, borderColor: palette.primary }]}>
                 {plusOne && <Text style={styles.checkmark}>✓</Text>}
               </View>
-              <Text style={styles.toggleText}>Has a plus one</Text>
+              <Text style={styles.checkRowText}>Has a plus one</Text>
             </TouchableOpacity>
           </ScrollView>
         </SafeAreaView>
@@ -379,42 +537,47 @@ function AddGuestModal({ visible, eventId, onClose, onSave }: {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg, paddingBottom: Spacing.sm },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  seatingBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1.5, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.white },
   title: { fontSize: Typography.sizes.xxl, fontWeight: Typography.weights.bold, color: Colors.textPrimary },
   subtitle: { fontSize: Typography.sizes.sm, color: Colors.textMuted, marginTop: 2 },
-  addBtn: { backgroundColor: Colors.primary, borderRadius: Radius.full, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.lg },
+  addBtn: { borderRadius: Radius.full, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.lg },
   addBtnText: { color: Colors.white, fontWeight: Typography.weights.semibold, fontSize: Typography.sizes.sm },
-  summaryRow: { flexDirection: 'row', paddingHorizontal: Spacing.lg, gap: Spacing.sm, marginBottom: Spacing.md },
+  summaryRow: { flexDirection: 'row', paddingHorizontal: Spacing.lg, gap: Spacing.sm, marginBottom: Spacing.sm },
   summaryCard: { flex: 1, backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.sm, alignItems: 'center', borderWidth: 1, borderColor: Colors.border, ...Shadow.sm },
   summaryEmoji: { fontSize: 18, marginBottom: 2 },
   summaryCount: { fontSize: Typography.sizes.lg, fontWeight: Typography.weights.bold },
   summaryLabel: { fontSize: Typography.sizes.xs, color: Colors.textMuted, textAlign: 'center' },
+  trackingRow: { flexDirection: 'row', marginHorizontal: Spacing.lg, backgroundColor: Colors.white, borderRadius: Radius.lg, paddingVertical: Spacing.md, marginBottom: Spacing.sm, ...Shadow.sm },
+  trackingItem: { flex: 1, alignItems: 'center' },
+  trackingCount: { fontSize: Typography.sizes.lg, fontWeight: Typography.weights.bold },
+  trackingLabel: { fontSize: Typography.sizes.xs, color: Colors.textMuted, marginTop: 2 },
+  trackingDivider: { width: 1, backgroundColor: Colors.border },
   searchWrap: { paddingHorizontal: Spacing.lg, marginBottom: Spacing.sm },
   searchInput: { backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, fontSize: Typography.sizes.md, color: Colors.textPrimary },
-  list: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xxxl },
+  list: { paddingHorizontal: Spacing.lg },
   row: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.md, marginBottom: Spacing.sm, ...Shadow.sm },
   avatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginRight: Spacing.md },
   avatarText: { fontSize: Typography.sizes.sm, fontWeight: Typography.weights.bold },
   rowInfo: { flex: 1 },
   rowName: { fontSize: Typography.sizes.md, fontWeight: Typography.weights.semibold, color: Colors.textPrimary },
-  rowMeta: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginTop: 2 },
+  rowMeta: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginTop: 2, flexWrap: 'wrap' },
   rsvpBadge: { borderRadius: Radius.full, paddingVertical: 1, paddingHorizontal: Spacing.sm },
   rsvpText: { fontSize: Typography.sizes.xs, fontWeight: Typography.weights.medium },
-  plusOne: { fontSize: Typography.sizes.xs, color: Colors.textMuted },
-  dietary: { fontSize: 12 },
+  metaTag: { fontSize: Typography.sizes.xs, color: Colors.textMuted },
   quickRsvp: { width: 32, height: 32, borderRadius: 16, borderWidth: 2, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
-  quickRsvpActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  quickRsvpText: { fontSize: Typography.sizes.md, color: Colors.white, fontWeight: Typography.weights.bold },
+  quickRsvpText: { fontSize: Typography.sizes.md, color: Colors.textMuted, fontWeight: Typography.weights.bold },
   empty: { alignItems: 'center', paddingVertical: Spacing.xxxl },
   emptyEmoji: { fontSize: 48, marginBottom: Spacing.md },
   emptyTitle: { fontSize: Typography.sizes.lg, fontWeight: Typography.weights.bold, color: Colors.textPrimary, marginBottom: Spacing.sm },
   emptyText: { fontSize: Typography.sizes.md, color: Colors.textMuted, textAlign: 'center' },
   modal: { flex: 1, backgroundColor: Colors.background },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border, backgroundColor: Colors.white },
-  modalCancel: { fontSize: Typography.sizes.md, color: Colors.textSecondary },
+  modalCancel: { fontSize: Typography.sizes.md, color: Colors.textSecondary, width: 60 },
   modalTitle: { fontSize: Typography.sizes.md, fontWeight: Typography.weights.bold, color: Colors.textPrimary, flex: 1, textAlign: 'center' },
-  modalSave: { fontSize: Typography.sizes.md, fontWeight: Typography.weights.bold, color: Colors.primary },
+  modalSave: { fontSize: Typography.sizes.md, fontWeight: Typography.weights.bold, width: 60, textAlign: 'right' },
   modalScroll: { padding: Spacing.lg, paddingBottom: Spacing.xxxl },
-  modalLabel: { fontSize: Typography.sizes.sm, fontWeight: Typography.weights.semibold, color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: Spacing.sm, marginTop: Spacing.lg },
+  modalLabel: { fontSize: Typography.sizes.sm, fontWeight: Typography.weights.semibold, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: Spacing.sm, marginTop: Spacing.lg },
   modalInput: { backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, fontSize: Typography.sizes.md, color: Colors.textPrimary },
   nameRow: { flexDirection: 'row', gap: Spacing.md },
   typeRow: { flexDirection: 'row', gap: Spacing.sm, flexWrap: 'wrap' },
@@ -422,16 +585,20 @@ const styles = StyleSheet.create({
   typeChipText: { fontSize: Typography.sizes.sm, color: Colors.textMuted, fontWeight: Typography.weights.medium },
   catGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   catChip: { paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, borderRadius: Radius.full, borderWidth: 1.5, borderColor: Colors.border, backgroundColor: Colors.white },
-  catChipActive: { borderColor: Colors.primary, backgroundColor: Colors.primaryLight },
-  catChipEmoji: { fontSize: 14 },
   catChipText: { fontSize: Typography.sizes.xs, color: Colors.textSecondary, fontWeight: Typography.weights.medium },
-  catChipTextActive: { color: Colors.primaryDark, fontWeight: Typography.weights.semibold },
   detailRow: { paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border },
   detailLabel: { fontSize: Typography.sizes.xs, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
   detailValue: { fontSize: Typography.sizes.md, color: Colors.textPrimary },
-  toggleRow: { flexDirection: 'row', alignItems: 'center', marginTop: Spacing.lg, gap: Spacing.sm },
+  toggleCard: { backgroundColor: Colors.white, borderRadius: Radius.lg, overflow: 'hidden', ...Shadow.sm },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md },
+  toggleLeft: { flex: 1, marginRight: Spacing.md },
+  toggleLabel: { fontSize: Typography.sizes.md, color: Colors.textPrimary, fontWeight: Typography.weights.medium },
+  toggleSub: { fontSize: Typography.sizes.xs, color: Colors.textMuted, marginTop: 2 },
+  toggleDivider: { height: 1, backgroundColor: Colors.border, marginHorizontal: Spacing.lg },
+  deleteBtn: { marginTop: Spacing.xl, backgroundColor: Colors.white, borderRadius: Radius.lg, paddingVertical: Spacing.lg, alignItems: 'center', borderWidth: 1, borderColor: Colors.error },
+  deleteBtnText: { color: Colors.error, fontSize: Typography.sizes.md, fontWeight: Typography.weights.medium },
+  checkRow: { flexDirection: 'row', alignItems: 'center', marginTop: Spacing.lg, gap: Spacing.sm },
   checkbox: { width: 22, height: 22, borderRadius: Radius.sm, borderWidth: 2, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
-  checkboxActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   checkmark: { color: Colors.white, fontSize: 13, fontWeight: Typography.weights.bold },
-  toggleText: { fontSize: Typography.sizes.md, color: Colors.textSecondary },
+  checkRowText: { fontSize: Typography.sizes.md, color: Colors.textSecondary },
 });

@@ -1,14 +1,20 @@
 import React, { useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  RefreshControl, Modal, TextInput, KeyboardAvoidingView, Platform,
+  RefreshControl, Modal, TextInput, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useEventStore } from '../../store/eventStore';
 import { Colors, Typography, Spacing, Radius, Shadow } from '../../theme';
 import { ChecklistCategory, ExpenseType, CreateExpenseInput } from '../../types';
+import { MainStackParams } from '../../navigation';
+import { Ionicons } from '@expo/vector-icons';
+import { exportBudgetPdf } from '../../utils/exportUtils';
 
 const CATEGORIES: { key: ChecklistCategory; label: string; emoji: string }[] = [
   { key: 'venue',        label: 'Venue',        emoji: '🏛️' },
@@ -26,6 +32,7 @@ const CATEGORIES: { key: ChecklistCategory; label: string; emoji: string }[] = [
   { key: 'honeymoon',    label: 'Honeymoon',    emoji: '✈️' },
   { key: 'favors',       label: 'Favors',       emoji: '🎁' },
   { key: 'officiant',    label: 'Officiant',    emoji: '📖' },
+  { key: 'rentals',      label: 'Rentals',      emoji: '🪑' },
   { key: 'other',        label: 'Other',        emoji: '📌' },
 ];
 
@@ -35,10 +42,26 @@ const RADIUS = (RING_SIZE - STROKE) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 export default function BudgetScreen() {
-  const { expenses, activeEventId, events, loadExpenses, addExpense } = useEventStore();
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParams>>();
+  const { expenses, vendors, activeEventId, events, loadExpenses, addExpense } = useEventStore();
   const activeEvent = events.find(e => e.id === activeEventId);
+  const { bottom } = useSafeAreaInsets();
+  const tabBarHeight = 60 + bottom;
   const [refreshing, setRefreshing] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = async () => {
+    if (!expenses.length) { Alert.alert('No expenses', 'Add expenses before exporting.'); return; }
+    setExporting(true);
+    try {
+      await exportBudgetPdf(expenses, vendors, activeEvent?.event_name ?? 'Wedding', activeEvent?.total_budget ?? null);
+    } catch {
+      Alert.alert('Export failed', 'Could not export budget PDF.');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const onRefresh = async () => {
     if (!activeEventId) return;
@@ -63,17 +86,22 @@ export default function BudgetScreen() {
   }, [expenses]);
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[styles.scroll, { paddingBottom: tabBarHeight + Spacing.lg }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
       >
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>Budget</Text>
-          <TouchableOpacity style={styles.addBtn} onPress={() => setShowAddModal(true)}>
-            <Text style={styles.addBtnText}>+ Add</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <TouchableOpacity onPress={handleExport} disabled={exporting} style={styles.exportBtn}>
+              <Ionicons name="share-outline" size={22} color={Colors.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.addBtn} onPress={() => setShowAddModal(true)}>
+              <Text style={styles.addBtnText}>+ Add</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Ring chart */}
@@ -137,7 +165,12 @@ export default function BudgetScreen() {
           const spent = byCategory[cat.key] ?? 0;
           const catPct = totalBudget > 0 ? Math.min(spent / totalBudget, 1) : 0;
           return (
-            <View key={cat.key} style={styles.catCard}>
+            <TouchableOpacity
+              key={cat.key}
+              style={styles.catCard}
+              onPress={() => activeEventId && navigation.navigate('BudgetCategoryDetail', { category: cat.key, eventId: activeEventId })}
+              activeOpacity={0.75}
+            >
               <Text style={styles.catEmoji}>{cat.emoji}</Text>
               <View style={styles.catInfo}>
                 <View style={styles.catRow}>
@@ -148,7 +181,7 @@ export default function BudgetScreen() {
                   <View style={[styles.catFill, { width: `${catPct * 100}%` }]} />
                 </View>
               </View>
-            </View>
+            </TouchableOpacity>
           );
         })}
 
@@ -299,7 +332,7 @@ function AddExpenseModal({
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
-  scroll: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xxxl },
+  scroll: { paddingHorizontal: Spacing.lg },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -312,6 +345,7 @@ const styles = StyleSheet.create({
     fontWeight: Typography.weights.bold,
     color: Colors.textPrimary,
   },
+  exportBtn: { padding: 4 },
   addBtn: {
     backgroundColor: Colors.primary,
     borderRadius: Radius.full,

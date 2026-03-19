@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import {
   Event, ChecklistItem, Vendor, Expense, Guest, AiConversation,
+  WeddingPartyMember, WeddingPartyRole,
+  TimelineEvent, TimelineCategory, CreateTimelineEventInput,
+  MoodboardItem, CreateMoodboardItemInput,
   CreateEventInput, CreateChecklistItemInput, CreateVendorInput,
   CreateExpenseInput, CreateGuestInput,
 } from '../types';
@@ -14,6 +17,9 @@ interface EventState {
   expenses: Expense[];
   guests: Guest[];
   aiConversation: AiConversation | null;
+  weddingParty: WeddingPartyMember[];
+  timelineEvents: TimelineEvent[];
+  moodboardItems: MoodboardItem[];
 
   loadingEvents: boolean;
   loadingChecklist: boolean;
@@ -43,6 +49,22 @@ interface EventState {
   addGuest: (guest: CreateGuestInput) => Promise<{ error?: string }>;
   updateGuest: (id: string, updates: Partial<Guest>) => Promise<void>;
   deleteGuest: (id: string) => Promise<void>;
+
+  loadWeddingParty: (eventId: string) => Promise<void>;
+  addWeddingPartyMember: (eventId: string, name: string, role: WeddingPartyRole, email?: string) => Promise<{ id?: string; error?: string }>;
+  removeWeddingPartyMember: (id: string) => Promise<void>;
+  assignTask: (taskId: string, memberId: string | null) => Promise<void>;
+  getAssigneeTasks: (shareCode: string) => Promise<{ member?: WeddingPartyMember; tasks?: ChecklistItem[]; eventName?: string; error?: string }>;
+
+  loadMoodboard: (eventId: string) => Promise<void>;
+  addMoodboardItem: (item: CreateMoodboardItemInput) => Promise<{ error?: string }>;
+  deleteMoodboardItem: (id: string) => Promise<void>;
+
+  loadTimeline: (eventId: string) => Promise<void>;
+  addTimelineEvent: (item: CreateTimelineEventInput) => Promise<{ error?: string }>;
+  updateTimelineEvent: (id: string, updates: Partial<TimelineEvent>) => Promise<void>;
+  deleteTimelineEvent: (id: string) => Promise<void>;
+  seedTimeline: (eventId: string) => Promise<void>;
 }
 
 export const useEventStore = create<EventState>((set, get) => ({
@@ -53,6 +75,9 @@ export const useEventStore = create<EventState>((set, get) => ({
   expenses: [],
   guests: [],
   aiConversation: null,
+  weddingParty: [],
+  timelineEvents: [],
+  moodboardItems: [],
   loadingEvents: false,
   loadingChecklist: false,
 
@@ -105,6 +130,9 @@ export const useEventStore = create<EventState>((set, get) => ({
       get().loadVendors(id),
       get().loadExpenses(id),
       get().loadGuests(id),
+      get().loadWeddingParty(id),
+      get().loadTimeline(id),
+      get().loadMoodboard(id),
     ]);
   },
 
@@ -278,5 +306,170 @@ export const useEventStore = create<EventState>((set, get) => ({
   deleteGuest: async (id) => {
     await supabase.from('guests').delete().eq('id', id);
     set({ guests: get().guests.filter(g => g.id !== id) });
+  },
+
+  loadWeddingParty: async (eventId) => {
+    const { data } = await supabase
+      .from('wedding_party')
+      .select('*')
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: true });
+    set({ weddingParty: (data as WeddingPartyMember[]) ?? [] });
+  },
+
+  addWeddingPartyMember: async (eventId, name, role, email) => {
+    // Generate 8-char share code
+    const share_code = Array.from(crypto.getRandomValues(new Uint8Array(4)))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('')
+      .toUpperCase();
+
+    const { data, error } = await supabase
+      .from('wedding_party')
+      .insert({ event_id: eventId, name, role, email: email ?? null, share_code })
+      .select()
+      .single();
+
+    if (error) return { error: error.message };
+    set({ weddingParty: [...get().weddingParty, data as WeddingPartyMember] });
+    return { id: data.id };
+  },
+
+  removeWeddingPartyMember: async (id) => {
+    // Unassign their tasks first
+    await supabase.from('checklist_items').update({ assigned_to_id: null }).eq('assigned_to_id', id);
+    await supabase.from('wedding_party').delete().eq('id', id);
+    set({ weddingParty: get().weddingParty.filter(m => m.id !== id) });
+    set({ checklistItems: get().checklistItems.map(i => i.assigned_to_id === id ? { ...i, assigned_to_id: null } : i) });
+  },
+
+  assignTask: async (taskId, memberId) => {
+    set({
+      checklistItems: get().checklistItems.map(i =>
+        i.id === taskId ? { ...i, assigned_to_id: memberId } : i
+      ),
+    });
+    await supabase
+      .from('checklist_items')
+      .update({ assigned_to_id: memberId, updated_at: new Date().toISOString() })
+      .eq('id', taskId);
+  },
+
+  loadMoodboard: async (eventId) => {
+    const { data } = await supabase
+      .from('moodboard_items')
+      .select('*')
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: false });
+    set({ moodboardItems: (data as MoodboardItem[]) ?? [] });
+  },
+
+  addMoodboardItem: async (item) => {
+    const { data, error } = await supabase
+      .from('moodboard_items')
+      .insert(item)
+      .select()
+      .single();
+    if (error) return { error: error.message };
+    set({ moodboardItems: [data as MoodboardItem, ...get().moodboardItems] });
+    return {};
+  },
+
+  deleteMoodboardItem: async (id) => {
+    await supabase.from('moodboard_items').delete().eq('id', id);
+    set({ moodboardItems: get().moodboardItems.filter(m => m.id !== id) });
+  },
+
+  loadTimeline: async (eventId) => {
+    const { data } = await supabase
+      .from('timeline_events')
+      .select('*')
+      .eq('event_id', eventId)
+      .order('time', { ascending: true });
+    set({ timelineEvents: (data as TimelineEvent[]) ?? [] });
+  },
+
+  addTimelineEvent: async (item) => {
+    const { data, error } = await supabase
+      .from('timeline_events')
+      .insert(item)
+      .select()
+      .single();
+    if (error) return { error: error.message };
+    const updated = [...get().timelineEvents, data as TimelineEvent]
+      .sort((a, b) => a.time.localeCompare(b.time));
+    set({ timelineEvents: updated });
+    return {};
+  },
+
+  updateTimelineEvent: async (id, updates) => {
+    const { data } = await supabase
+      .from('timeline_events')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+    if (data) {
+      const updated = get().timelineEvents
+        .map(e => e.id === id ? data as TimelineEvent : e)
+        .sort((a, b) => a.time.localeCompare(b.time));
+      set({ timelineEvents: updated });
+    }
+  },
+
+  deleteTimelineEvent: async (id) => {
+    await supabase.from('timeline_events').delete().eq('id', id);
+    set({ timelineEvents: get().timelineEvents.filter(e => e.id !== id) });
+  },
+
+  seedTimeline: async (eventId) => {
+    const defaults: { time: string; title: string; duration_minutes: number; category: TimelineCategory }[] = [
+      { time: '08:00', title: 'Hair & Makeup', duration_minutes: 180, category: 'getting_ready' },
+      { time: '11:00', title: 'Getting Dressed', duration_minutes: 60, category: 'getting_ready' },
+      { time: '12:00', title: 'First Look & Photos', duration_minutes: 60, category: 'photos' },
+      { time: '13:00', title: 'Ceremony', duration_minutes: 60, category: 'ceremony' },
+      { time: '14:00', title: 'Family & Wedding Party Photos', duration_minutes: 45, category: 'photos' },
+      { time: '15:00', title: 'Cocktail Hour', duration_minutes: 60, category: 'cocktail_hour' },
+      { time: '16:00', title: 'Reception Begins', duration_minutes: 30, category: 'reception' },
+      { time: '16:30', title: 'First Dance', duration_minutes: 15, category: 'reception' },
+      { time: '17:00', title: 'Dinner Service', duration_minutes: 90, category: 'reception' },
+      { time: '18:30', title: 'Speeches & Toasts', duration_minutes: 30, category: 'reception' },
+      { time: '19:00', title: 'Cake Cutting', duration_minutes: 20, category: 'reception' },
+      { time: '19:30', title: 'Dancing', duration_minutes: 120, category: 'reception' },
+      { time: '21:30', title: 'Grand Send-off', duration_minutes: 30, category: 'reception' },
+    ];
+    const items = defaults.map((d, i) => ({ ...d, event_id: eventId, sort_order: i }));
+    const { data } = await supabase.from('timeline_events').insert(items).select();
+    if (data) {
+      set({ timelineEvents: (data as TimelineEvent[]).sort((a, b) => a.time.localeCompare(b.time)) });
+    }
+  },
+
+  getAssigneeTasks: async (shareCode) => {
+    const { data: member, error } = await supabase
+      .from('wedding_party')
+      .select('*')
+      .eq('share_code', shareCode)
+      .single();
+
+    if (error || !member) return { error: 'Invalid code. Please check and try again.' };
+
+    const { data: tasks } = await supabase
+      .from('checklist_items')
+      .select('*')
+      .eq('assigned_to_id', member.id)
+      .order('due_date', { ascending: true });
+
+    const { data: event } = await supabase
+      .from('events')
+      .select('event_name')
+      .eq('id', member.event_id)
+      .single();
+
+    return {
+      member: member as WeddingPartyMember,
+      tasks: (tasks as ChecklistItem[]) ?? [],
+      eventName: event?.event_name,
+    };
   },
 }));

@@ -6,9 +6,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEventStore } from '../../store/eventStore';
 import { Colors, Typography, Spacing, Radius, Shadow } from '../../theme';
-import { Vendor, VendorStatus, ChecklistCategory, CreateVendorInput } from '../../types';
+import { Vendor, VendorStatus, ChecklistCategory, CreateVendorInput, PaymentMilestone } from '../../types';
 
 const CATEGORIES: { key: ChecklistCategory; label: string; emoji: string }[] = [
   { key: 'venue',        label: 'Venue',         emoji: '🏛️' },
@@ -35,6 +36,8 @@ const STATUS_CONFIG: Record<VendorStatus, { label: string; color: string; bg: st
 
 export default function VendorsScreen() {
   const { vendors, activeEventId, loadVendors, addVendor, updateVendor, deleteVendor } = useEventStore();
+  const { bottom } = useSafeAreaInsets();
+  const tabBarHeight = 60 + bottom;
   const [refreshing, setRefreshing] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
@@ -64,9 +67,9 @@ export default function VendorsScreen() {
   const bookedCount = vendors.filter(v => v.status === 'booked').length;
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[styles.scroll, { paddingBottom: tabBarHeight + Spacing.lg }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
       >
         {/* Header */}
@@ -139,7 +142,7 @@ export default function VendorsScreen() {
         <VendorDetailModal
           vendor={selectedVendor}
           onClose={() => setSelectedVendor(null)}
-          onDelete={async () => {
+          onDelete={() => {
             Alert.alert('Delete Vendor', `Remove ${selectedVendor.business_name}?`, [
               { text: 'Cancel', style: 'cancel' },
               {
@@ -151,14 +154,9 @@ export default function VendorsScreen() {
               },
             ]);
           }}
-          onUpdateStatus={async (status) => {
-            await updateVendor(selectedVendor.id, { status });
-            setSelectedVendor({ ...selectedVendor, status });
-          }}
-          onToggleContract={async () => {
-            const newVal = !selectedVendor.contract_signed;
-            await updateVendor(selectedVendor.id, { contract_signed: newVal });
-            setSelectedVendor({ ...selectedVendor, contract_signed: newVal });
+          onUpdate={async (updates) => {
+            await updateVendor(selectedVendor.id, updates);
+            setSelectedVendor({ ...selectedVendor, ...updates });
           }}
         />
       )}
@@ -197,84 +195,241 @@ function VendorCard({ vendor, onPress, onStatusChange }: {
 
 // ─── Vendor Detail Modal ──────────────────────────────────────────────────────
 
-function VendorDetailModal({ vendor, onClose, onDelete, onUpdateStatus, onToggleContract }: {
+function genId() {
+  return Array.from({ length: 8 }, () =>
+    Math.floor(Math.random() * 256).toString(16).padStart(2, '0')
+  ).join('');
+}
+
+function VendorDetailModal({ vendor, onClose, onDelete, onUpdate }: {
   vendor: Vendor;
   onClose: () => void;
   onDelete: () => void;
-  onUpdateStatus: (status: VendorStatus) => void;
-  onToggleContract: () => void;
+  onUpdate: (updates: Partial<Vendor>) => Promise<void>;
 }) {
-  const cfg = STATUS_CONFIG[vendor.status];
+  const [contractNotes, setContractNotes] = useState(vendor.contract_notes ?? '');
+  const [payments, setPayments] = useState<PaymentMilestone[]>(vendor.payment_schedule ?? []);
+  const [showAddPayment, setShowAddPayment] = useState(false);
+  const [payLabel, setPayLabel] = useState('');
+  const [payAmount, setPayAmount] = useState('');
+  const [payDate, setPayDate] = useState('');
+
+  const saveContractNotes = async () => {
+    await onUpdate({ contract_notes: contractNotes });
+  };
+
+  const togglePaid = async (id: string) => {
+    const updated = payments.map(m =>
+      m.id === id
+        ? { ...m, paid: !m.paid, paid_date: !m.paid ? new Date().toISOString().split('T')[0] : undefined }
+        : m
+    );
+    setPayments(updated);
+    await onUpdate({ payment_schedule: updated });
+  };
+
+  const addPayment = async () => {
+    if (!payLabel.trim() || !payAmount) return;
+    const milestone: PaymentMilestone = {
+      id: genId(),
+      label: payLabel.trim(),
+      amount: parseFloat(payAmount),
+      due_date: payDate,
+      paid: false,
+    };
+    const updated = [...payments, milestone];
+    setPayments(updated);
+    await onUpdate({ payment_schedule: updated });
+    setPayLabel(''); setPayAmount(''); setPayDate('');
+    setShowAddPayment(false);
+  };
+
+  const deletePayment = (id: string) => {
+    Alert.alert('Remove payment', 'Remove this payment milestone?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove', style: 'destructive',
+        onPress: async () => {
+          const updated = payments.filter(m => m.id !== id);
+          setPayments(updated);
+          await onUpdate({ payment_schedule: updated });
+        },
+      },
+    ]);
+  };
+
+  const totalPaid = payments.filter(m => m.paid).reduce((s, m) => s + m.amount, 0);
+  const totalDue = payments.reduce((s, m) => s + m.amount, 0);
 
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={styles.modal}>
-        <View style={styles.modalHeader}>
-          <TouchableOpacity onPress={onClose}>
-            <Text style={styles.modalCancel}>Done</Text>
-          </TouchableOpacity>
-          <Text style={styles.modalTitle} numberOfLines={1}>{vendor.business_name}</Text>
-          <TouchableOpacity onPress={onDelete}>
-            <Text style={[styles.modalCancel, { color: Colors.error }]}>Delete</Text>
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView contentContainerStyle={styles.modalScroll}>
-          {/* Status picker */}
-          <Text style={styles.modalLabel}>Status</Text>
-          <View style={styles.typeRow}>
-            {(['shortlisted', 'contacted', 'booked', 'cancelled'] as VendorStatus[]).map(s => {
-              const c = STATUS_CONFIG[s];
-              return (
-                <TouchableOpacity
-                  key={s}
-                  style={[styles.typeChip, vendor.status === s && { borderColor: c.color, backgroundColor: c.bg }]}
-                  onPress={() => onUpdateStatus(s)}
-                >
-                  <Text style={[styles.typeChipText, vendor.status === s && { color: c.color, fontWeight: Typography.weights.semibold }]}>
-                    {c.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <SafeAreaView style={styles.modal}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={onClose}>
+              <Text style={styles.modalCancel}>Done</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle} numberOfLines={1}>{vendor.business_name}</Text>
+            <TouchableOpacity onPress={onDelete}>
+              <Text style={[styles.modalCancel, { color: Colors.error }]}>Delete</Text>
+            </TouchableOpacity>
           </View>
 
-          {/* Details */}
-          {vendor.contact_name && <DetailRow label="Contact" value={vendor.contact_name} />}
-          {vendor.total_cost && <DetailRow label="Total cost" value={`$${Number(vendor.total_cost).toLocaleString()}`} />}
-          {vendor.notes && <DetailRow label="Notes" value={vendor.notes} />}
+          <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
 
-          {/* Actions */}
-          <Text style={styles.modalLabel}>Actions</Text>
-          <View style={styles.actionRow}>
-            {vendor.phone && (
-              <TouchableOpacity style={styles.actionBtn} onPress={() => Linking.openURL(`tel:${vendor.phone}`)}>
-                <Text style={styles.actionEmoji}>📞</Text>
-                <Text style={styles.actionText}>Call</Text>
-              </TouchableOpacity>
-            )}
-            {vendor.email && (
-              <TouchableOpacity style={styles.actionBtn} onPress={() => Linking.openURL(`mailto:${vendor.email}`)}>
-                <Text style={styles.actionEmoji}>✉️</Text>
-                <Text style={styles.actionText}>Email</Text>
-              </TouchableOpacity>
-            )}
-            {vendor.website && (
-              <TouchableOpacity style={styles.actionBtn} onPress={() => Linking.openURL(vendor.website!)}>
-                <Text style={styles.actionEmoji}>🌐</Text>
-                <Text style={styles.actionText}>Website</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+            {/* Status */}
+            <Text style={styles.modalLabel}>Status</Text>
+            <View style={styles.typeRow}>
+              {(['shortlisted', 'contacted', 'booked', 'cancelled'] as VendorStatus[]).map(s => {
+                const c = STATUS_CONFIG[s];
+                return (
+                  <TouchableOpacity
+                    key={s}
+                    style={[styles.typeChip, vendor.status === s && { borderColor: c.color, backgroundColor: c.bg }]}
+                    onPress={() => onUpdate({ status: s })}
+                  >
+                    <Text style={[styles.typeChipText, vendor.status === s && { color: c.color, fontWeight: Typography.weights.semibold }]}>
+                      {c.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
-          {/* Contract toggle */}
-          <TouchableOpacity style={styles.contractToggle} onPress={onToggleContract}>
-            <Text style={styles.contractToggleText}>
-              {vendor.contract_signed ? '✅ Contract signed' : '☐ Mark contract as signed'}
-            </Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </SafeAreaView>
+            {/* Contact info */}
+            {(vendor.contact_name || vendor.total_cost || vendor.notes) && (
+              <>
+                {vendor.contact_name && <DetailRow label="Contact" value={vendor.contact_name} />}
+                {vendor.total_cost != null && <DetailRow label="Total quoted" value={`$${Number(vendor.total_cost).toLocaleString()}`} />}
+                {vendor.notes && <DetailRow label="Notes" value={vendor.notes} />}
+              </>
+            )}
+
+            {/* Actions */}
+            {(vendor.phone || vendor.email || vendor.website) && (
+              <>
+                <Text style={styles.modalLabel}>Contact</Text>
+                <View style={styles.actionRow}>
+                  {vendor.phone && (
+                    <TouchableOpacity style={styles.actionBtn} onPress={() => Linking.openURL(`tel:${vendor.phone}`)}>
+                      <Text style={styles.actionEmoji}>📞</Text>
+                      <Text style={styles.actionText}>Call</Text>
+                    </TouchableOpacity>
+                  )}
+                  {vendor.email && (
+                    <TouchableOpacity style={styles.actionBtn} onPress={() => Linking.openURL(`mailto:${vendor.email}`)}>
+                      <Text style={styles.actionEmoji}>✉️</Text>
+                      <Text style={styles.actionText}>Email</Text>
+                    </TouchableOpacity>
+                  )}
+                  {vendor.website && (
+                    <TouchableOpacity style={styles.actionBtn} onPress={() => Linking.openURL(vendor.website!)}>
+                      <Text style={styles.actionEmoji}>🌐</Text>
+                      <Text style={styles.actionText}>Website</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </>
+            )}
+
+            {/* ── Contract ── */}
+            <Text style={styles.modalLabel}>Contract</Text>
+
+            <TouchableOpacity
+              style={[styles.contractToggle, vendor.contract_signed && styles.contractToggleSigned]}
+              onPress={() => onUpdate({ contract_signed: !vendor.contract_signed })}
+            >
+              <Text style={styles.contractToggleText}>
+                {vendor.contract_signed ? '✅ Contract signed' : '☐ Mark contract as signed'}
+              </Text>
+            </TouchableOpacity>
+
+            <Text style={[styles.modalLabel, { marginTop: Spacing.lg }]}>Contract Notes</Text>
+            <TextInput
+              style={[styles.modalInput, { height: 90, textAlignVertical: 'top' }]}
+              value={contractNotes}
+              onChangeText={setContractNotes}
+              onBlur={saveContractNotes}
+              placeholder="Payment terms, cancellation policy, special clauses…"
+              placeholderTextColor={Colors.textMuted}
+              multiline
+            />
+
+            {/* ── Payment Schedule ── */}
+            <View style={styles.payHeader}>
+              <Text style={styles.modalLabel}>Payment Schedule</Text>
+              {totalDue > 0 && (
+                <Text style={styles.payTally}>${totalPaid.toLocaleString()} / ${totalDue.toLocaleString()} paid</Text>
+              )}
+            </View>
+
+            {payments.map(m => (
+              <TouchableOpacity
+                key={m.id}
+                style={[styles.payRow, m.paid && styles.payRowPaid]}
+                onPress={() => togglePaid(m.id)}
+                onLongPress={() => deletePayment(m.id)}
+              >
+                <View style={[styles.payCheck, m.paid && styles.payCheckDone]}>
+                  {m.paid && <Text style={styles.payCheckMark}>✓</Text>}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.payLabel, m.paid && styles.payLabelDone]}>{m.label}</Text>
+                  {m.due_date ? (
+                    <Text style={styles.payDate}>
+                      Due {new Date(m.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      {m.paid && m.paid_date ? ` · Paid ${new Date(m.paid_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}
+                    </Text>
+                  ) : null}
+                </View>
+                <Text style={[styles.payAmount, m.paid && styles.payAmountDone]}>${m.amount.toLocaleString()}</Text>
+              </TouchableOpacity>
+            ))}
+
+            {showAddPayment ? (
+              <View style={styles.addPayForm}>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="Label (e.g. Deposit)"
+                  placeholderTextColor={Colors.textMuted}
+                  value={payLabel}
+                  onChangeText={setPayLabel}
+                />
+                <View style={{ flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm }}>
+                  <TextInput
+                    style={[styles.modalInput, { flex: 1 }]}
+                    placeholder="Amount"
+                    placeholderTextColor={Colors.textMuted}
+                    value={payAmount}
+                    onChangeText={setPayAmount}
+                    keyboardType="decimal-pad"
+                  />
+                  <TextInput
+                    style={[styles.modalInput, { flex: 1 }]}
+                    placeholder="Due date (YYYY-MM-DD)"
+                    placeholderTextColor={Colors.textMuted}
+                    value={payDate}
+                    onChangeText={setPayDate}
+                  />
+                </View>
+                <View style={{ flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm }}>
+                  <TouchableOpacity style={[styles.addPayBtn, { backgroundColor: Colors.primary, flex: 1 }]} onPress={addPayment}>
+                    <Text style={{ color: Colors.white, fontWeight: Typography.weights.semibold }}>Add</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.addPayBtn, { backgroundColor: Colors.cream, flex: 1 }]} onPress={() => setShowAddPayment(false)}>
+                    <Text style={{ color: Colors.textSecondary }}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.addPayTrigger} onPress={() => setShowAddPayment(true)}>
+                <Text style={styles.addPayTriggerText}>+ Add Payment</Text>
+              </TouchableOpacity>
+            )}
+
+          </ScrollView>
+        </SafeAreaView>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -396,7 +551,7 @@ function AddVendorModal({ visible, eventId, onClose, onSave }: {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
-  scroll: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xxxl },
+  scroll: { paddingHorizontal: Spacing.lg },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingTop: Spacing.lg, paddingBottom: Spacing.sm,
@@ -450,5 +605,34 @@ const styles = StyleSheet.create({
   actionEmoji: { fontSize: 24, marginBottom: 4 },
   actionText: { fontSize: Typography.sizes.xs, color: Colors.textSecondary, fontWeight: Typography.weights.medium },
   contractToggle: { backgroundColor: Colors.cream, borderRadius: Radius.lg, padding: Spacing.lg, alignItems: 'center' },
+  contractToggleSigned: { backgroundColor: '#EDF7EE' },
   contractToggleText: { fontSize: Typography.sizes.md, color: Colors.textSecondary, fontWeight: Typography.weights.medium },
+  payHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  payTally: { fontSize: Typography.sizes.sm, color: Colors.textMuted },
+  payRow: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
+    backgroundColor: Colors.white, borderRadius: Radius.md,
+    padding: Spacing.md, marginBottom: Spacing.sm,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  payRowPaid: { borderColor: Colors.success + '44', backgroundColor: '#F6FBF6' },
+  payCheck: {
+    width: 24, height: 24, borderRadius: 12,
+    borderWidth: 2, borderColor: Colors.border,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  payCheckDone: { backgroundColor: Colors.success, borderColor: Colors.success },
+  payCheckMark: { color: Colors.white, fontSize: 13, fontWeight: '700' },
+  payLabel: { fontSize: Typography.sizes.md, color: Colors.textPrimary, fontWeight: Typography.weights.medium },
+  payLabelDone: { color: Colors.textMuted, textDecorationLine: 'line-through' },
+  payDate: { fontSize: Typography.sizes.xs, color: Colors.textMuted, marginTop: 2 },
+  payAmount: { fontSize: Typography.sizes.md, fontWeight: Typography.weights.semibold, color: Colors.textPrimary },
+  payAmountDone: { color: Colors.textMuted },
+  addPayForm: {
+    backgroundColor: Colors.cream, borderRadius: Radius.lg,
+    padding: Spacing.md, marginBottom: Spacing.sm,
+  },
+  addPayBtn: { borderRadius: Radius.md, padding: Spacing.md, alignItems: 'center' },
+  addPayTrigger: { paddingVertical: Spacing.md, alignItems: 'center' },
+  addPayTriggerText: { fontSize: Typography.sizes.md, color: Colors.primary, fontWeight: Typography.weights.semibold },
 });

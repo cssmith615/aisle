@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aisle – Privacy Policy</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Georgia', serif; background: #FDFAF8; color: #333; line-height: 1.75; }
+    .hero { background: linear-gradient(135deg, #C9A96E, #a8824d); color: white; padding: 60px 24px 48px; text-align: center; }
+    .hero h1 { font-size: 2rem; font-weight: 800; letter-spacing: 1px; margin-bottom: 8px; }
+    .hero p { opacity: 0.9; font-size: 1rem; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+    .container { max-width: 760px; margin: 0 auto; padding: 40px 24px 80px; }
+    h2 { font-size: 1.15rem; font-weight: 700; color: #C9A96E; margin: 36px 0 12px; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+    p { margin-bottom: 14px; font-size: 0.97rem; }
+    ul { margin: 0 0 14px 20px; }
+    ul li { margin-bottom: 6px; font-size: 0.97rem; }
+    .highlight { background: #FDF5E8; border-left: 4px solid #C9A96E; padding: 16px 20px; border-radius: 0 8px 8px 0; margin: 20px 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+    .highlight strong { color: #C9A96E; }
+    .date { font-size: 0.85rem; color: #aaa; text-align: center; margin-top: 48px; font-family: sans-serif; }
+    a { color: #C9A96E; }
+    nav { text-align: center; padding: 20px; font-family: sans-serif; font-size: 0.9rem; }
+    nav a { margin: 0 12px; color: #C9A96E; text-decoration: none; }
+  </style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>Aisle</h1>
+  <p>Privacy Policy</p>
+</div>
+
+<nav>
+  <a href="index.html">Privacy Policy</a>
+  <a href="support.html">Support</a>
+</nav>
+
+<div class="container">
+
+  <div class="highlight">
+    <strong>Short version:</strong> Aisle stores your wedding data securely in the cloud so you can access it from any device. We do not sell your data, share it with advertisers, or use it for any purpose other than running the app. Your AI assistant key is stored only on your device and never sent to our servers.
+  </div>
+
+  <h2>1. Who We Are</h2>
+  <p>Aisle is a wedding planning app designed to help couples organize their big day — checklists, budgets, guest lists, vendors, timelines, and more. This policy explains what data we collect, how we use it, and your rights around it.</p>
+
+  <h2>2. Data We Collect</h2>
+  <p>When you use Aisle, we store the following data on our secure cloud servers (Supabase / PostgreSQL):</p>
+  <ul>
+    <li>Your email address and display name (used to sign in and identify your account)</li>
+    <li>Wedding event details you enter: event name, date, venue, budget</li>
+    <li>Checklist tasks, vendors, expenses, guests, seating arrangements, and timeline events you create</li>
+    <li>Wedding party member names and contact info you add</li>
+    <li>Inspiration photos you upload to your moodboard</li>
+    <li>Your selected color theme and app preferences</li>
+  </ul>
+  <p>We do <strong>not</strong> collect precise location data, contacts from your address book, or any data from your device beyond what you explicitly enter into the app.</p>
+
+  <h2>3. How We Use Your Data</h2>
+  <p>We use your data exclusively to provide the Aisle app experience:</p>
+  <ul>
+    <li>Syncing your wedding details across sessions and devices</li>
+    <li>Displaying your checklist, budget, guest list, and vendor information</li>
+    <li>Sending task reminder notifications you opt in to</li>
+    <li>Generating AI assistant responses (see Section 5)</li>
+  </ul>
+  <p>We do <strong>not</strong> sell your data, share it with advertisers, or use it to train AI models.</p>
+
+  <h2>4. Data Security</h2>
+  <p>Your data is stored in Supabase, a secure cloud database platform. All data is encrypted in transit (TLS) and at rest. Row-level security policies ensure that only you can access your own wedding data — other users cannot view or modify your events, guests, or other information.</p>
+
+  <h2>5. AI Assistant</h2>
+  <p>The AI Assistant feature is powered by the Anthropic Claude API. To use it, you provide your own Anthropic API key. Here is how it works:</p>
+  <ul>
+    <li>Your API key is stored securely on your device using the operating system's secure storage (iOS Keychain / Android Keystore). It is never sent to our servers.</li>
+    <li>When you send a message to the AI assistant, a summary of your wedding details (event name, date, budget, guest count, task progress, vendors) is included as context in the request sent directly from your device to Anthropic's API.</li>
+    <li>Anthropic's own privacy policy governs how they handle API requests. You can review it at <a href="https://www.anthropic.com/privacy">anthropic.com/privacy</a>.</li>
+    <li>No AI conversation history is stored on our servers beyond what you can see in the app.</li>
+  </ul>
+
+  <h2>6. Wedding Party Share Codes</h2>
+  <p>When you create a wedding party member and generate a share code, that code is stored in our database associated with your event. Anyone with the share code can view the tasks assigned to that wedding party member. Share codes do not grant access to your full guest list, budget, or other sensitive data — only the specific tasks assigned to that member.</p>
+
+  <h2>7. Push Notifications</h2>
+  <p>If you grant notification permission, Aisle may send you local reminders for upcoming tasks and countdown milestones. Notification preferences are stored on your device. We do not send marketing push notifications.</p>
+
+  <h2>8. Photos (Moodboard)</h2>
+  <p>If you add photos to your moodboard from your camera roll, those images are uploaded to our secure cloud storage. Photos you add via URL are referenced by URL and not stored on our servers. You can delete any moodboard photo at any time from within the app.</p>
+
+  <h2>9. Data Deletion</h2>
+  <p>You can delete your account and all associated data at any time by contacting us at <a href="mailto:support@aisleapp.wedding">support@aisleapp.wedding</a>. We will permanently delete your data within 30 days of your request. Deleting the app from your device does not automatically delete your cloud data — please contact us if you want full deletion.</p>
+
+  <h2>10. Third-Party Services</h2>
+  <p>Aisle uses the following third-party services:</p>
+  <ul>
+    <li><strong>Supabase</strong> — Cloud database and authentication (<a href="https://supabase.com/privacy">supabase.com/privacy</a>)</li>
+    <li><strong>Anthropic Claude API</strong> — AI assistant, if you choose to use it (<a href="https://www.anthropic.com/privacy">anthropic.com/privacy</a>)</li>
+    <li><strong>Expo / EAS</strong> — App build and delivery infrastructure (<a href="https://expo.dev/privacy">expo.dev/privacy</a>)</li>
+  </ul>
+
+  <h2>11. Changes to This Policy</h2>
+  <p>If we make material changes to this policy, we will update the "Last updated" date below. Continued use of the app after changes constitutes acceptance of the updated policy.</p>
+
+  <h2>12. Contact</h2>
+  <p>Questions about this privacy policy or your data? Contact us at: <a href="mailto:support@aisleapp.wedding">support@aisleapp.wedding</a></p>
+
+  <p class="date">Last updated: March 2026</p>
+
+</div>
+</body>
+</html>
