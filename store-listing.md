@@ -33,6 +33,15 @@ Assign checklist tasks to your bridal party and groomsmen. Each person gets a un
 **AI Wedding Assistant** *(Premium)*
 Ask anything. Get vendor email drafts, day-of timelines, budget tips, and personalized advice — all powered by Claude AI and aware of your specific wedding details.
 
+**Gift Registries**
+Keep all your registry links in one place — Zola, The Knot, Amazon, Target, and more. One tap to open any registry and share with guests.
+
+**Song Wishlist**
+Plan your music for every moment — processional, first dance, cocktail hour, reception, and last dance. Build your wishlist and hand it off to your DJ or band.
+
+**Wedding Day Forecast**
+When your big day is 10 days away, Aisle automatically shows the weather forecast right on your Day-of Timeline so you can plan accordingly.
+
 **Your wedding colors**
 Choose from 10 hand-crafted color palettes to match your wedding theme. The entire app shifts to match — hero card, tab bar, and accents.
 
@@ -42,8 +51,8 @@ Never miss a deadline. Get notified before tasks are due, with weekly countdowns
 ---
 
 **Free plan:** 1 wedding, core checklist
-**Premium ($7.99/mo):** AI assistant, wedding party, unlimited tasks
-**Pro ($19.99/mo):** Multi-client management for wedding planners
+**Premium ($7.99/mo or $74.99/yr):** AI assistant, wedding party, unlimited tasks
+**Pro ($19.99/mo or $189.99/yr):** Multi-client management for wedding planners
 
 ---
 
@@ -109,7 +118,9 @@ Create a subscription group, then add two products:
 | Product ID | Name | Price | Billing period |
 |---|---|---|---|
 | `com.aisle.weddingplanner.premium_monthly` | Aisle Premium | $7.99 | Monthly |
-| `com.aisle.weddingplanner.pro_monthly` | Aisle Pro | $19.99 | Monthly |
+| `com.aisle.weddingplanner.premium_yearly`  | Aisle Premium (Annual) | $74.99 | Yearly |
+| `com.aisle.weddingplanner.pro_monthly`     | Aisle Pro | $19.99 | Monthly |
+| `com.aisle.weddingplanner.pro_yearly`      | Aisle Pro (Annual) | $189.99 | Yearly |
 
 ### Data Safety (Play Console — required)
 Under "Data types collected":

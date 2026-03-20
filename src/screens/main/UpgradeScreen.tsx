@@ -12,12 +12,14 @@ import {
   purchasePlan, restorePurchases, isPurchasesAvailable, PurchasableTier,
 } from '../../utils/purchases';
 
+type BillingPeriod = 'monthly' | 'yearly';
+
 const PLANS = [
   {
     id: 'premium' as PurchasableTier,
     name: 'Premium',
-    price: '$7.99',
-    period: '/month',
+    monthly: { price: '$7.99', period: '/month', productId: 'com.aisle.weddingplanner.premium_monthly' },
+    yearly:  { price: '$74.99', period: '/year', savings: 'Save 22%', productId: 'com.aisle.weddingplanner.premium_yearly' },
     color: Colors.primary,
     gradient: ['#C9A96E', '#A07840'] as [string, string],
     features: [
@@ -32,8 +34,8 @@ const PLANS = [
   {
     id: 'pro' as PurchasableTier,
     name: 'Pro',
-    price: '$19.99',
-    period: '/month',
+    monthly: { price: '$19.99', period: '/month', productId: 'com.aisle.weddingplanner.pro_monthly' },
+    yearly:  { price: '$189.99', period: '/year', savings: 'Save 21%', productId: 'com.aisle.weddingplanner.pro_yearly' },
     color: '#9B59B6',
     gradient: ['#9B59B6', '#6C3483'] as [string, string],
     features: [
@@ -51,11 +53,13 @@ export default function UpgradeScreen() {
   const navigation = useNavigation();
   const { profile, updateTier } = useAuthStore();
   const [selected, setSelected] = useState<PurchasableTier>('premium');
+  const [billing, setBilling] = useState<BillingPeriod>('monthly');
   const [loading, setLoading] = useState(false);
   const [restoring, setRestoring] = useState(false);
 
   const currentTier = profile?.tier ?? 'free';
   const plan = PLANS.find(p => p.id === selected)!;
+  const billingInfo = plan[billing];
   const purchasesAvailable = isPurchasesAvailable();
 
   const handlePurchase = async () => {
@@ -69,7 +73,7 @@ export default function UpgradeScreen() {
     }
 
     setLoading(true);
-    const result = await purchasePlan(selected);
+    const result = await purchasePlan(selected, billing);
     setLoading(false);
 
     if (result.cancelled) return;
@@ -150,11 +154,35 @@ export default function UpgradeScreen() {
           ))}
         </View>
 
+        {/* Billing toggle */}
+        <View style={styles.billingToggle}>
+          <TouchableOpacity
+            style={[styles.billingBtn, billing === 'monthly' && { backgroundColor: plan.color }]}
+            onPress={() => setBilling('monthly')}
+          >
+            <Text style={[styles.billingBtnText, billing === 'monthly' && { color: Colors.white }]}>Monthly</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.billingBtn, billing === 'yearly' && { backgroundColor: plan.color }]}
+            onPress={() => setBilling('yearly')}
+          >
+            <Text style={[styles.billingBtnText, billing === 'yearly' && { color: Colors.white }]}>Yearly</Text>
+            {billing !== 'yearly' && (
+              <View style={[styles.saveBadge, { backgroundColor: plan.color + '22' }]}>
+                <Text style={[styles.saveBadgeText, { color: plan.color }]}>{plan.yearly.savings}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+
         {/* Price */}
         <View style={styles.priceCard}>
-          <Text style={[styles.price, { color: plan.color }]}>{plan.price}</Text>
-          <Text style={styles.period}>{plan.period}</Text>
+          <Text style={[styles.price, { color: plan.color }]}>{billingInfo.price}</Text>
+          <Text style={styles.period}>{billingInfo.period}</Text>
         </View>
+        {billing === 'yearly' && (
+          <Text style={[styles.savingsNote, { color: plan.color }]}>{plan.yearly.savings} vs monthly</Text>
+        )}
 
         {/* Features */}
         <View style={styles.featuresCard}>
@@ -241,11 +269,42 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   toggleText: { fontSize: Typography.sizes.md, fontWeight: Typography.weights.semibold, color: Colors.textMuted },
+  billingToggle: {
+    flexDirection: 'row',
+    backgroundColor: Colors.white,
+    borderRadius: Radius.full,
+    padding: 4,
+    marginBottom: Spacing.md,
+    ...Shadow.sm,
+  },
+  billingBtn: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+  },
+  billingBtnText: { fontSize: Typography.sizes.md, fontWeight: Typography.weights.semibold, color: Colors.textMuted },
+  saveBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: Radius.full,
+  },
+  saveBadgeText: { fontSize: Typography.sizes.xs, fontWeight: Typography.weights.bold },
+  savingsNote: {
+    textAlign: 'center',
+    fontSize: Typography.sizes.sm,
+    fontWeight: Typography.weights.semibold,
+    marginTop: -Spacing.sm,
+    marginBottom: Spacing.md,
+  },
   priceCard: {
     flexDirection: 'row',
     alignItems: 'baseline',
     justifyContent: 'center',
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.sm,
     gap: 4,
   },
   price: { fontSize: 48, fontWeight: Typography.weights.black },

@@ -38,6 +38,8 @@ import MoodboardScreen from '../screens/main/MoodboardScreen';
 import SeatingChartScreen from '../screens/main/SeatingChartScreen';
 import ChecklistItemDetailScreen from '../screens/main/ChecklistItemDetailScreen';
 import BudgetCategoryDetailScreen from '../screens/main/BudgetCategoryDetailScreen';
+import RegistriesScreen from '../screens/main/RegistriesScreen';
+import SongWishlistScreen from '../screens/main/SongWishlistScreen';
 
 // Placeholder — screens will be replaced sprint by sprint
 const PlaceholderScreen = ({ name }: { name: string }) => (
@@ -85,6 +87,8 @@ export type MainStackParams = {
   ClientDetail: { eventId: string };
   DayOfTimeline: undefined;
   Moodboard: undefined;
+  Registries: undefined;
+  SongWishlist: undefined;
 };
 
 // ─── Navigators ──────────────────────────────────────────────────────────────
@@ -167,6 +171,8 @@ function MainNavigator() {
       <MainStack.Screen name="AssigneePortal" component={AssigneePortalScreen} />
       <MainStack.Screen name="DayOfTimeline" component={DayOfTimelineScreen} />
       <MainStack.Screen name="Moodboard" component={MoodboardScreen} />
+      <MainStack.Screen name="Registries" component={RegistriesScreen} />
+      <MainStack.Screen name="SongWishlist" component={SongWishlistScreen} />
     </MainStack.Navigator>
   );
 }

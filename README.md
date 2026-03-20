@@ -8,9 +8,11 @@ A clean, AI-powered wedding planning app for iOS and Android. Built with React N
 - **Budget Tracker** — Donut ring chart, category breakdown, expense log
 - **Vendor Manager** — Status tracking, contract notes, payment schedules
 - **Guest List** — RSVP tracking, plus-ones, dietary notes, seating assignments
-- **Day-of Timeline** — Hour-by-hour schedule builder with PDF export
+- **Day-of Timeline** — Hour-by-hour schedule builder with PDF export + weather forecast (10 days out)
 - **Photo Moodboard** — Inspiration board with camera roll + URL support
-- **Seating Chart** — Table grid with drag-assign guest management
+- **Seating Chart** — Table grid with shape types (round/rectangular/sweetheart/head) + guest assignment
+- **Gift Registries** — All registry links in one place (Zola, The Knot, Amazon, and more)
+- **Song Wishlist** — Music planning by moment (processional, first dance, reception, etc.)
 - **AI Assistant** — Powered by Claude, context-aware wedding advice
 - **Wedding Party** — Task delegation with share-code portal (no app install required)
 - **Color Themes** — 10 hand-crafted palettes that theme the entire app
@@ -32,8 +34,8 @@ A clean, AI-powered wedding planning app for iOS and Android. Built with React N
 | Tier | Price | Features |
 |---|---|---|
 | Free | $0 | 1 event, core checklist |
-| Premium | $7.99/mo | AI assistant, wedding party, unlimited features |
-| Pro | $19.99/mo | Multi-client management for wedding planners |
+| Premium | $7.99/mo or $74.99/yr | AI assistant, wedding party, unlimited features |
+| Pro | $19.99/mo or $189.99/yr | Multi-client management for wedding planners |
 
 ## Project Structure
 

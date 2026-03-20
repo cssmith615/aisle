@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
@@ -195,6 +195,45 @@ function AddModal({ eventId, visible, onClose }: AddModalProps) {
 
 // ─── Main screen ─────────────────────────────────────────────────────────────
 
+interface WeatherDay {
+  high: string;
+  low: string;
+  desc: string;
+  icon: string;
+  rain: string;
+}
+
+async function fetchWeather(location: string, targetDate: string): Promise<WeatherDay | null> {
+  try {
+    const encoded = encodeURIComponent(location);
+    const res = await fetch(`https://wttr.in/${encoded}?format=j1`, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const days: any[] = json.weather ?? [];
+    const match = days.find((d: any) => d.date === targetDate) ?? days[0];
+    if (!match) return null;
+    const desc = match.hourly?.[4]?.weatherDesc?.[0]?.value ?? match.hourly?.[0]?.weatherDesc?.[0]?.value ?? '';
+    const rain = match.hourly?.[4]?.chanceofrain ?? match.hourly?.[0]?.chanceofrain ?? '0';
+    const wmoCode = parseInt(match.hourly?.[4]?.weatherCode ?? match.hourly?.[0]?.weatherCode ?? '113');
+    let icon = '☀️';
+    if (wmoCode >= 200 && wmoCode < 300) icon = '⛈️';
+    else if (wmoCode >= 300 && wmoCode < 600) icon = '🌧️';
+    else if (wmoCode >= 600 && wmoCode < 700) icon = '❄️';
+    else if (wmoCode >= 700 && wmoCode < 800) icon = '🌫️';
+    else if (wmoCode === 800) icon = '☀️';
+    else if (wmoCode > 800) icon = '⛅';
+    return {
+      high: match.maxtempF,
+      low: match.mintempF,
+      desc,
+      icon,
+      rain,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export default function DayOfTimelineScreen() {
   const navigation = useNavigation();
   const { bottom } = useSafeAreaInsets();
@@ -203,6 +242,7 @@ export default function DayOfTimelineScreen() {
   const [showAdd, setShowAdd] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [weather, setWeather] = useState<WeatherDay | null>(null);
 
   const handleExport = async () => {
     if (!timelineEvents.length) { Alert.alert('No events', 'Add timeline events before exporting.'); return; }
@@ -232,6 +272,19 @@ export default function DayOfTimelineScreen() {
     setSeeding(false);
   };
 
+  const daysUntil = activeEvent?.event_date
+    ? Math.ceil((new Date(activeEvent.event_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    : null;
+
+  const showWeather = daysUntil !== null && daysUntil >= 0 && daysUntil <= 10;
+
+  useEffect(() => {
+    if (!showWeather || !activeEvent?.event_date) return;
+    const location = activeEvent.venue_name ?? '';
+    if (!location) return;
+    fetchWeather(location, activeEvent.event_date).then(setWeather);
+  }, [showWeather, activeEvent?.event_date, activeEvent?.venue_name]);
+
   const weddingDateStr = activeEvent?.event_date
     ? new Date(activeEvent.event_date).toLocaleDateString('en-US', {
         weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
@@ -255,6 +308,40 @@ export default function DayOfTimelineScreen() {
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Weather banner — shows within 10 days of wedding */}
+      {showWeather && (
+        <View style={[styles.weatherBanner, { borderColor: palette.primary + '44', backgroundColor: palette.primary + '0C' }]}>
+          {weather ? (
+            <>
+              <Text style={styles.weatherIcon}>{weather.icon}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.weatherTitle, { color: palette.primary }]}>
+                  Wedding Day Forecast
+                  {daysUntil === 0 ? ' · Today!' : ` · ${daysUntil} day${daysUntil !== 1 ? 's' : ''} away`}
+                </Text>
+                <Text style={styles.weatherDesc}>
+                  {weather.desc} · {weather.high}°/{weather.low}°F · {weather.rain}% rain
+                </Text>
+              </View>
+            </>
+          ) : (
+            <>
+              <Text style={styles.weatherIcon}>🌤️</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.weatherTitle, { color: palette.primary }]}>
+                  Wedding Day is {daysUntil === 0 ? 'Today!' : `in ${daysUntil} day${daysUntil !== 1 ? 's' : ''}!`}
+                </Text>
+                <Text style={styles.weatherDesc}>
+                  {activeEvent?.venue_name
+                    ? 'Loading forecast…'
+                    : 'Add your venue in Event Settings to see the forecast.'}
+                </Text>
+              </View>
+            </>
+          )}
+        </View>
+      )}
 
       {/* Empty state */}
       {timelineEvents.length === 0 ? (
@@ -360,6 +447,27 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.sm,
     color: Colors.textMuted,
     marginTop: 2,
+  },
+  weatherBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.xs,
+    padding: Spacing.md,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+  },
+  weatherIcon: { fontSize: 28 },
+  weatherTitle: {
+    fontSize: Typography.sizes.sm,
+    fontWeight: Typography.weights.semibold,
+    marginBottom: 2,
+  },
+  weatherDesc: {
+    fontSize: Typography.sizes.sm,
+    color: Colors.textSecondary,
   },
   scroll: { padding: Spacing.lg },
   row: { flexDirection: 'row', marginBottom: Spacing.md },

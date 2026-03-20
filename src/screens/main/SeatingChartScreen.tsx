@@ -10,7 +10,14 @@ import { useNavigation } from '@react-navigation/native';
 import { useEventStore } from '../../store/eventStore';
 import { useTheme } from '../../context/ThemeContext';
 import { Colors, Typography, Spacing, Radius, Shadow } from '../../theme';
-import { Guest } from '../../types';
+import { Guest, TableShape, SeatingConfig } from '../../types';
+
+const TABLE_SHAPES: { value: TableShape; label: string; icon: string }[] = [
+  { value: 'round',        label: 'Round',       icon: '⭕' },
+  { value: 'rectangular',  label: 'Rectangle',   icon: '▭' },
+  { value: 'sweetheart',   label: 'Sweetheart',  icon: '❤️' },
+  { value: 'head',         label: 'Head Table',  icon: '👑' },
+];
 
 export default function SeatingChartScreen() {
   const navigation = useNavigation();
@@ -31,6 +38,21 @@ export default function SeatingChartScreen() {
   const [assigningGuest, setAssigningGuest] = useState<Guest | null>(null);
   const [selectedTable, setSelectedTable] = useState<number | null>(null);
   const [showUnassignedPicker, setShowUnassignedPicker] = useState(false);
+  const [seatingConfig, setSeatingConfig] = useState<SeatingConfig>({});
+  const [showShapePicker, setShowShapePicker] = useState<number | null>(null);
+
+  const getShape = (tableNum: number): TableShape =>
+    seatingConfig[String(tableNum)]?.shape ?? 'round';
+
+  const setShape = (tableNum: number, shape: TableShape) => {
+    setSeatingConfig(prev => ({
+      ...prev,
+      [String(tableNum)]: { ...prev[String(tableNum)], shape },
+    }));
+  };
+
+  const shapeIcon = (tableNum: number) =>
+    TABLE_SHAPES.find(s => s.value === getShape(tableNum))?.icon ?? '⭕';
 
   const seatedGuests = useMemo(() => guests.filter(g => g.table_number != null), [guests]);
   const unseatedGuests = useMemo(() => guests.filter(g => g.table_number == null), [guests]);
@@ -139,11 +161,15 @@ export default function SeatingChartScreen() {
                   : { backgroundColor: Colors.cream, borderColor: Colors.border, borderWidth: 1 },
               ]}
               onPress={() => setSelectedTable(tableNum)}
+              onLongPress={() => setShowShapePicker(tableNum)}
               activeOpacity={0.75}
             >
-              <Text style={[styles.tableNum, { color: hasGuests ? palette.primary : Colors.textMuted }]}>
-                T{tableNum}
-              </Text>
+              <View style={styles.tableHeaderRow}>
+                <Text style={[styles.tableNum, { color: hasGuests ? palette.primary : Colors.textMuted }]}>
+                  T{tableNum}
+                </Text>
+                <Text style={styles.tableShapeIcon}>{shapeIcon(tableNum)}</Text>
+              </View>
               <Text style={[styles.tableCount, { color: hasGuests ? palette.primary : Colors.textMuted }]}>
                 {tableGuests.length}/{capacity}
               </Text>
@@ -304,6 +330,44 @@ export default function SeatingChartScreen() {
         </View>
       </Modal>
 
+      {/* Shape picker modal */}
+      <Modal
+        visible={showShapePicker != null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowShapePicker(null)}
+      >
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowShapePicker(null)}>
+          <TouchableOpacity activeOpacity={1} style={styles.settingsPanel}>
+            <Text style={styles.settingsTitle}>Table {showShapePicker} Shape</Text>
+            {TABLE_SHAPES.map(s => (
+              <TouchableOpacity
+                key={s.value}
+                style={[
+                  styles.shapeRow,
+                  showShapePicker != null && getShape(showShapePicker) === s.value && { backgroundColor: palette.primary + '18' },
+                ]}
+                onPress={() => {
+                  if (showShapePicker != null) setShape(showShapePicker, s.value);
+                  setShowShapePicker(null);
+                }}
+              >
+                <Text style={styles.shapeRowIcon}>{s.icon}</Text>
+                <Text style={[
+                  styles.shapeRowLabel,
+                  showShapePicker != null && getShape(showShapePicker) === s.value && { color: palette.primary, fontWeight: Typography.weights.bold },
+                ]}>
+                  {s.label}
+                </Text>
+                {showShapePicker != null && getShape(showShapePicker) === s.value && (
+                  <Ionicons name="checkmark" size={18} color={palette.primary} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
       {/* Unassigned picker (shown inside table detail flow) */}
       <Modal
         visible={showUnassignedPicker}
@@ -411,7 +475,9 @@ const styles = StyleSheet.create({
     minHeight: 100,
     ...Shadow.sm,
   },
-  tableNum: { fontSize: Typography.sizes.xl, fontWeight: Typography.weights.bold, marginBottom: 2 },
+  tableHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: 2 },
+  tableNum: { fontSize: Typography.sizes.lg, fontWeight: Typography.weights.bold },
+  tableShapeIcon: { fontSize: 14 },
   tableCount: { fontSize: Typography.sizes.xs, marginBottom: Spacing.xs },
   tableGuestName: { fontSize: Typography.sizes.xs, color: Colors.textSecondary, textAlign: 'center' },
   tableEmpty: { fontSize: Typography.sizes.xs, color: Colors.textMuted, fontStyle: 'italic' },
@@ -469,6 +535,17 @@ const styles = StyleSheet.create({
     fontWeight: Typography.weights.bold,
     fontSize: Typography.sizes.md,
   },
+
+  shapeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: Radius.md,
+  },
+  shapeRowIcon: { fontSize: 20, width: 28, textAlign: 'center' },
+  shapeRowLabel: { flex: 1, fontSize: Typography.sizes.md, color: Colors.textPrimary },
 
   // Assign / detail panels
   assignPanel: {

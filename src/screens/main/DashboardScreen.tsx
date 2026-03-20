@@ -214,6 +214,34 @@ export default function DashboardScreen() {
           <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={[styles.featureBanner, { borderColor: palette.primary + '44' }]}
+          onPress={() => navigation.navigate('Registries' as any)}
+        >
+          <View style={[styles.bannerIconWrap, { backgroundColor: palette.primary + '18' }]}>
+            <Text style={styles.bannerEmoji}>🎁</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.bannerTitle}>Gift Registries</Text>
+            <Text style={styles.bannerSub}>Keep all your registry links in one place</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.featureBanner, { borderColor: palette.primary + '44' }]}
+          onPress={() => navigation.navigate('SongWishlist' as any)}
+        >
+          <View style={[styles.bannerIconWrap, { backgroundColor: palette.primary + '18' }]}>
+            <Text style={styles.bannerEmoji}>🎵</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.bannerTitle}>Song Wishlist</Text>
+            <Text style={styles.bannerSub}>Plan your music from first dance to last</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+        </TouchableOpacity>
+
         {/* Urgent tasks */}
         {urgentTasks.length > 0 && (
           <View style={styles.section}>

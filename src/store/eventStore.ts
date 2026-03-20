@@ -5,6 +5,8 @@ import {
   WeddingPartyMember, WeddingPartyRole,
   TimelineEvent, TimelineCategory, CreateTimelineEventInput,
   MoodboardItem, CreateMoodboardItemInput,
+  Registry, CreateRegistryInput,
+  Song, CreateSongInput,
   CreateEventInput, CreateChecklistItemInput, CreateVendorInput,
   CreateExpenseInput, CreateGuestInput,
 } from '../types';
@@ -20,6 +22,8 @@ interface EventState {
   weddingParty: WeddingPartyMember[];
   timelineEvents: TimelineEvent[];
   moodboardItems: MoodboardItem[];
+  registries: Registry[];
+  songs: Song[];
 
   loadingEvents: boolean;
   loadingChecklist: boolean;
@@ -60,6 +64,15 @@ interface EventState {
   addMoodboardItem: (item: CreateMoodboardItemInput) => Promise<{ error?: string }>;
   deleteMoodboardItem: (id: string) => Promise<void>;
 
+  loadRegistries: (eventId: string) => Promise<void>;
+  addRegistry: (registry: CreateRegistryInput) => Promise<{ error?: string }>;
+  updateRegistry: (id: string, updates: Partial<Registry>) => Promise<void>;
+  deleteRegistry: (id: string) => Promise<void>;
+
+  loadSongs: (eventId: string) => Promise<void>;
+  addSong: (song: CreateSongInput) => Promise<{ error?: string }>;
+  deleteSong: (id: string) => Promise<void>;
+
   loadTimeline: (eventId: string) => Promise<void>;
   addTimelineEvent: (item: CreateTimelineEventInput) => Promise<{ error?: string }>;
   updateTimelineEvent: (id: string, updates: Partial<TimelineEvent>) => Promise<void>;
@@ -78,6 +91,8 @@ export const useEventStore = create<EventState>((set, get) => ({
   weddingParty: [],
   timelineEvents: [],
   moodboardItems: [],
+  registries: [],
+  songs: [],
   loadingEvents: false,
   loadingChecklist: false,
 
@@ -133,6 +148,8 @@ export const useEventStore = create<EventState>((set, get) => ({
       get().loadWeddingParty(id),
       get().loadTimeline(id),
       get().loadMoodboard(id),
+      get().loadRegistries(id),
+      get().loadSongs(id),
     ]);
   },
 
@@ -378,6 +395,54 @@ export const useEventStore = create<EventState>((set, get) => ({
   deleteMoodboardItem: async (id) => {
     await supabase.from('moodboard_items').delete().eq('id', id);
     set({ moodboardItems: get().moodboardItems.filter(m => m.id !== id) });
+  },
+
+  loadRegistries: async (eventId) => {
+    const { data } = await supabase
+      .from('registries')
+      .select('*')
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: true });
+    set({ registries: (data as Registry[]) ?? [] });
+  },
+
+  addRegistry: async (registry) => {
+    const { data, error } = await supabase.from('registries').insert(registry).select().single();
+    if (error) return { error: error.message };
+    set({ registries: [...get().registries, data as Registry] });
+    return {};
+  },
+
+  updateRegistry: async (id, updates) => {
+    const { data } = await supabase.from('registries').update(updates).eq('id', id).select().single();
+    if (data) set({ registries: get().registries.map(r => r.id === id ? data as Registry : r) });
+  },
+
+  deleteRegistry: async (id) => {
+    await supabase.from('registries').delete().eq('id', id);
+    set({ registries: get().registries.filter(r => r.id !== id) });
+  },
+
+  loadSongs: async (eventId) => {
+    const { data } = await supabase
+      .from('songs')
+      .select('*')
+      .eq('event_id', eventId)
+      .order('moment', { ascending: true })
+      .order('created_at', { ascending: true });
+    set({ songs: (data as Song[]) ?? [] });
+  },
+
+  addSong: async (song) => {
+    const { data, error } = await supabase.from('songs').insert(song).select().single();
+    if (error) return { error: error.message };
+    set({ songs: [...get().songs, data as Song] });
+    return {};
+  },
+
+  deleteSong: async (id) => {
+    await supabase.from('songs').delete().eq('id', id);
+    set({ songs: get().songs.filter(s => s.id !== id) });
   },
 
   loadTimeline: async (eventId) => {

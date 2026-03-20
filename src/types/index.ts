@@ -322,3 +322,73 @@ export interface CreateGuestInput {
   dietary_notes?: string;
   table_number?: number;
 }
+
+// ─── Registry ────────────────────────────────────────────────────────────────
+
+export type RegistryStore =
+  | 'Zola'
+  | 'The Knot'
+  | 'Amazon'
+  | 'Target'
+  | 'Crate & Barrel'
+  | 'Williams-Sonoma'
+  | 'Pottery Barn'
+  | "Bed Bath & Beyond"
+  | "Macy's"
+  | 'Other';
+
+export interface Registry {
+  id: string;
+  event_id: string;
+  store_name: string;
+  url: string;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface CreateRegistryInput {
+  event_id: string;
+  store_name: string;
+  url: string;
+  notes?: string;
+}
+
+// ─── Song Wishlist ────────────────────────────────────────────────────────────
+
+export type SongMoment =
+  | 'processional'
+  | 'first_dance'
+  | 'father_daughter'
+  | 'mother_son'
+  | 'cocktail_hour'
+  | 'reception'
+  | 'last_dance'
+  | 'recessional'
+  | 'other';
+
+export interface Song {
+  id: string;
+  event_id: string;
+  title: string;
+  artist: string | null;
+  moment: SongMoment;
+  created_at: string;
+}
+
+export interface CreateSongInput {
+  event_id: string;
+  title: string;
+  artist?: string;
+  moment: SongMoment;
+}
+
+// ─── Seating config ───────────────────────────────────────────────────────────
+
+export type TableShape = 'round' | 'rectangular' | 'sweetheart' | 'head';
+
+export interface SeatingTableConfig {
+  shape: TableShape;
+  name?: string;
+}
+
+export type SeatingConfig = Record<string, SeatingTableConfig>; // key = table number string

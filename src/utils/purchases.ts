@@ -6,11 +6,15 @@
  *
  * RevenueCat dashboard setup required:
  *  1. Create products in App Store Connect + Google Play Console
- *     - com.aisle.weddingplanner.premium_monthly ($7.99/mo)
- *     - com.aisle.weddingplanner.pro_monthly ($19.99/mo)
+ *     Monthly:
+ *       - com.aisle.weddingplanner.premium_monthly ($7.99/mo)
+ *       - com.aisle.weddingplanner.pro_monthly ($19.99/mo)
+ *     Yearly:
+ *       - com.aisle.weddingplanner.premium_yearly ($74.99/yr)
+ *       - com.aisle.weddingplanner.pro_yearly ($189.99/yr)
  *  2. Create entitlements in RevenueCat dashboard:
- *     - "premium" → com.aisle.weddingplanner.premium_monthly
- *     - "pro"     → com.aisle.weddingplanner.pro_monthly
+ *     - "premium" → premium_monthly + premium_yearly
+ *     - "pro"     → pro_monthly + pro_yearly
  *  3. Fill in REVENUECAT_APPLE_KEY and REVENUECAT_GOOGLE_KEY below
  */
 
@@ -22,11 +26,14 @@ const REVENUECAT_GOOGLE_KEY = 'goog_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
 // ─── Product IDs ─────────────────────────────────────────────────────────────
 
 export const PRODUCT_IDS = {
-  premium: 'com.aisle.weddingplanner.premium_monthly',
-  pro:     'com.aisle.weddingplanner.pro_monthly',
+  premium_monthly: 'com.aisle.weddingplanner.premium_monthly',
+  premium_yearly:  'com.aisle.weddingplanner.premium_yearly',
+  pro_monthly:     'com.aisle.weddingplanner.pro_monthly',
+  pro_yearly:      'com.aisle.weddingplanner.pro_yearly',
 } as const;
 
-export type PurchasableTier = keyof typeof PRODUCT_IDS;
+export type PurchasableTier = 'premium' | 'pro';
+export type BillingPeriod = 'monthly' | 'yearly';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -105,16 +112,19 @@ export async function getCurrentTier(): Promise<'free' | 'premium' | 'pro'> {
 
 // ─── Purchase a plan ─────────────────────────────────────────────────────────
 
-export async function purchasePlan(tier: PurchasableTier): Promise<PurchaseResult> {
+export async function purchasePlan(tier: PurchasableTier, billing: BillingPeriod = 'monthly'): Promise<PurchaseResult> {
   const P = getModule();
   if (!P || !_initialized) {
     return { success: false, error: 'Purchases not available in Expo Go. Use a dev or production build.' };
   }
 
+  const productKey = `${tier}_${billing}` as keyof typeof PRODUCT_IDS;
+  const productId = PRODUCT_IDS[productKey];
+
   try {
     const offerings = await P.getOfferings();
     const pkg = offerings.current?.availablePackages?.find(
-      (p: any) => p.product.identifier === PRODUCT_IDS[tier]
+      (p: any) => p.product.identifier === productId
     );
 
     if (!pkg) {
