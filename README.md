@@ -1,4 +1,4 @@
-# Aisle — Wedding Planner
+# Stefana: Wedding Planner
 
 A clean, AI-powered wedding planning app for iOS and Android. Built with React Native + Expo, Supabase, and Claude AI.
 
@@ -114,5 +114,5 @@ $$;
 
 ## Links
 
-- **Privacy Policy:** https://cssmith615.github.io/aisle
-- **Support:** https://cssmith615.github.io/aisle/support.html
+- **Privacy Policy:** https://cssmith615.github.io/stefana
+- **Support:** https://cssmith615.github.io/stefana/support.html
