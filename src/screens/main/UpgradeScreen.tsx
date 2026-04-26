@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -221,9 +221,12 @@ export default function UpgradeScreen() {
         </TouchableOpacity>
 
         <Text style={styles.legalText}>
-          Subscriptions renew automatically. Cancel anytime in your App Store or Play Store settings.
+          Subscriptions renew automatically. Cancel anytime in your App Store settings.
           {'\n'}By subscribing you agree to our{' '}
-          <Text style={{ color: Colors.primary }}>Terms of Service</Text>.
+          <Text
+            style={{ color: Colors.primary }}
+            onPress={() => Linking.openURL('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/')}
+          >Terms of Service</Text>.
         </Text>
       </ScrollView>
     </SafeAreaView>
